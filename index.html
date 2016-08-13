@@ -61,10 +61,105 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-这些年来做过奇奇怪怪的东西" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2016/08/13/这些年来做过奇奇怪怪的东西/" class="article-date">
+  <time datetime="2016-08-13T03:56:53.580Z" itemprop="datePublished">2016-08-13</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>#这些年来做过奇奇怪怪的东西</p>
+<h2 id="监控系统"><a href="#监控系统" class="headerlink" title="监控系统"></a>监控系统</h2><h3 id="东软"><a href="#东软" class="headerlink" title="东软"></a>东软</h3><p>根据 nagios 的插件标准使用 msmtp命令模拟用户发送邮件行为,发送邮件附带相关 request id 信息,接收端通过 pop 协议收取邮件.通过判断 request id 实现一个发送邮件和接收邮件的闭环监控.由于nagios 没有图表展示,根据当时淘宝的技术分享,使用了 centreon 集成方案作为最后方案.由于监控项和服务项比较少,所以没有碰到相关的性能问题.当然,顺便也用 NRPE 实现了磁盘 CPU 等基础监控.</p>
+<h3 id="新浪微博"><a href="#新浪微博" class="headerlink" title="新浪微博"></a>新浪微博</h3><h4 id="监控"><a href="#监控" class="headerlink" title="监控"></a>监控</h4><p> 使用 centreon 通过 SNMP 协议监控网络流量,依旧使用 NRPE 去监控CPU 内存等资源.外加端口监控. 监控规模扩大到了600台.</p>
+<h4 id="配置管理"><a href="#配置管理" class="headerlink" title="配置管理"></a>配置管理</h4><p>由于当时是 CentOS 5 python 版本是2.4 , yum 对 python 还有着强依赖.又没有现在的virtualenv.虽然当时有fabric.但由于 pyhont 版本要求,并没有使用. 最后选型使用 puppet, 但由于当时的架构师puppet 的版本绑定到数据库中.丧失了 puppet 原有的灵活性.最后大家只使用了一个 puppet 的 exec 执行了一个 shell 脚本.一直沿用了3年.</p>
+<h3 id="纽约时报"><a href="#纽约时报" class="headerlink" title="纽约时报"></a>纽约时报</h3><p>研究学习了 aws 的</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2016/08/13/这些年来做过奇奇怪怪的东西/" data-id="cirsni9xo000dlnt2hodz62op" class="article-share-link">Partager</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-总结" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2016/08/13/总结/" class="article-date">
+  <time datetime="2016-08-13T03:56:53.579Z" itemprop="datePublished">2016-08-13</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><h2 id="写在前面的"><a href="#写在前面的" class="headerlink" title="写在前面的"></a>写在前面的</h2><p>工作5y+了,被人要起来东西的时候才想到开始总结.开始拿脑袋想了下.写过不少好玩的好用的.但是基本上也没有一个总结和积累.比较可惜.那些过往的代码,可能的地方估计有两个:</p>
+<ul>
+<li>和某些小电影放到了以前的移动硬盘(NAS)里.</li>
+<li>github上之后很少很少的东西.</li>
+</ul>
+<p>鉴于我比较懒的缘故实在去翻那些代码.所幸就在下面自己总结吧.也算完成某人给的任务==</p>
+<h2 id="监控"><a href="#监控" class="headerlink" title="监控"></a>监控</h2><h3 id="大学时代"><a href="#大学时代" class="headerlink" title="大学时代"></a>大学时代</h3><p>当时闲着没事,在网上找了一篇mrtg的文章.第一个练手的就是学校访问量最大的网站(42)的服务器.依稀记得当时是对照教程把服务器上的SNMP打开了.记忆里应该是没有任何的SNMP的安全措施.还好应该是只读的.</p>
+<p><code>当然直接在生产服务器上做实验的这事.当时还小.不懂事:)这个在东软时期有过严重的教训.这个又可以开一个专题了.</code></p>
+<p>成就:发现了首页的一个巨大的FLASH占用了大量的带宽,把建议提给了某同学,却被说浏览器应该有缓存.妈蛋.我这流量咋解释.虽然没改变什么,但好歹从监控发现了一些可以优化的问题.成就感还是有的.</p>
+<h3 id="东软时期"><a href="#东软时期" class="headerlink" title="东软时期"></a>东软时期</h3><h4 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h4><p>开始正式的系统管理员的生活.当时碰到了一个最最经典的情景:写监控系统的不收报警.收报警的无法改监控系统.</p>
+<p>在以后5年多的SA生涯里,这个模型依旧存在,即使DevOps的兴起也没有改变什么.</p>
+<p>既然不能利用自己的一线工作经验去调教监控系统.只能自力更生了.</p>
+<h4 id="调研"><a href="#调研" class="headerlink" title="调研"></a>调研</h4><p>花了一个月的时间开始调研以下的监控工具:</p>
+<ul>
+<li>nagios</li>
+<li>zabbix</li>
+<li>centreon</li>
+<li>bigbrother</li>
+<li>zenoss</li>
+<li>opennms</li>
+<li>pandora</li>
+</ul>
+<p>现在看看,除了前两个,其它的应该没人知道了.当时大家对于zabbix应该是刚刚开始知道.网上只有零零散散的几个介绍文章.因此当时主要还是研究了下nagios.</p>
+<h4 id="选型"><a href="#选型" class="headerlink" title="选型"></a>选型</h4><h6 id="优势"><a href="#优势" class="headerlink" title="优势"></a>优势</h6><ul>
+<li>灵活,灵活,灵活.</li>
+<li>监控的调度做的非常好.</li>
+<li>报警很完善.自定义时间段,升级.</li>
+<li>事件钩子机制</li>
+</ul>
+<h6 id="劣势"><a href="#劣势" class="headerlink" title="劣势"></a>劣势</h6><ul>
+<li>没有图,没有图,没有图</li>
+<li>一些插件还需要自己写(社区刚刚起步)</li>
+<li>插件对Solaris的支持.</li>
+</ul>
+<p>插件自己写这事可以忍,但没有图这事咋办?当时在nagios群里有人推荐了centreon.当时也是听说淘宝那边也在用这个.</p>
+<h4 id="搭建centreon"><a href="#搭建centreon" class="headerlink" title="搭建centreon"></a>搭建centreon</h4><p>按照官方的方式,还要安装一堆依赖.当年要是有docker该多好(其实有zone了).当时第一次感觉.官方的教程如此得靠谱.</p>
+<h5 id="编写nagios插件"><a href="#编写nagios插件" class="headerlink" title="编写nagios插件."></a>编写nagios插件.</h5><p>使用Shell,模拟用户真实发送邮件.要模拟内网各种部门的邮件互通(落地在不同的服务器),还要模拟内外网的邮件互通(走MX外网邮件网关),因此逻辑关系会有7*7这么多.体力活. 具体使用的应该社区上的一个现成的插件进行了修改.具体的细节就忘记了==</p>
+<h3 id="渣浪第一期"><a href="#渣浪第一期" class="headerlink" title="渣浪第一期"></a>渣浪第一期</h3><h4 id="背景-1"><a href="#背景-1" class="headerlink" title="背景"></a>背景</h4><p>历史总是那么的相似,刚刚说的那个关于监控经典的情景再度的上演了.但这次由于机器很多.一线的运维开始了被各种报警的轰炸.自产的报警系统没有业务信息.你无法判断一个报警的业务等级是否重要.</p>
+<h4 id="自救"><a href="#自救" class="headerlink" title="自救"></a>自救</h4><h2 id="配管"><a href="#配管" class="headerlink" title="配管"></a>配管</h2><h2 id="其它小工具"><a href="#其它小工具" class="headerlink" title="其它小工具"></a>其它小工具</h2>
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2016/08/13/总结/" data-id="cirsni9xn000clnt26zbciuco" class="article-share-link">Partager</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
     <article id="post-hello-world" class="article article-type-post" itemscope itemprop="blogPost">
   <div class="article-meta">
     <a href="/2016/08/13/hello-world/" class="article-date">
-  <time datetime="2016-08-13T02:27:46.937Z" itemprop="datePublished">2016-08-13</time>
+  <time datetime="2016-08-13T03:56:53.577Z" itemprop="datePublished">2016-08-13</time>
 </a>
     
   </div>
@@ -96,7 +191,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2016/08/13/hello-world/" data-id="cirskbofu000036t2oqg7sbcs" class="article-share-link">Partager</a>
+      <a data-url="http://yoursite.com/2016/08/13/hello-world/" data-id="cirsni9xl000blnt2iq25hkfu" class="article-share-link">Partager</a>
       
       
     </footer>
@@ -133,7 +228,283 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2016/08/13/this-is-a-test-page/" data-id="cirskbofz000136t2ci7rmlbe" class="article-share-link">Partager</a>
+      <a data-url="http://yoursite.com/2016/08/13/this-is-a-test-page/" data-id="cirsni9xq000elnt2e886zi9t" class="article-share-link">Partager</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-puppet" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2015/08/08/puppet/" class="article-date">
+  <time datetime="2015-08-07T16:00:00.000Z" itemprop="datePublished">2015-08-08</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2015/08/08/puppet/">puppet</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="puppet"><a href="#puppet" class="headerlink" title="puppet"></a>puppet</h1><p>##介绍 puppet</p>
+<h3 id="什么是-puppet"><a href="#什么是-puppet" class="headerlink" title="什么是 puppet"></a>什么是 puppet</h3><ul>
+<li>配置管理工具</li>
+<li>系统自动化的框架</li>
+<li>一种描述语言</li>
+<li>开源软件</li>
+<li>跨平台</li>
+<li>好多人用</li>
+<li>巴拉巴拉</li>
+</ul>
+<h3 id="配置管理的优势"><a href="#配置管理的优势" class="headerlink" title="配置管理的优势"></a>配置管理的优势</h3><ul>
+<li>基础设置即代码<blockquote>
+<p>追踪 测试 部署 扩容 代码变更都可以用软件工程那套配置管理啦</p>
+</blockquote>
+</li>
+<li>幂等性<blockquote>
+<p>每次运行的结果都一致</p>
+</blockquote>
+</li>
+<li>快速扩容<blockquote>
+<p>扩容1台机器和100台机器是一样滴(现实并非如此)</p>
+</blockquote>
+</li>
+<li>一致的用户体验</li>
+<li>统一环境 <blockquote>
+<p>测试 生产 开发<br>类似软件 Chef CFEngine Salt Ansible</p>
+</blockquote>
+</li>
+</ul>
+<h3 id="相关资料"><a href="#相关资料" class="headerlink" title="相关资料:"></a>相关资料:</h3><ul>
+<li>Puppet Labs - The Company behind Puppet</li>
+<li>Puppet - The OpenSource version</li>
+<li>Puppet Enterprise - The commercial version</li>
+<li>The Community - Active and vibrant</li>
+<li>Puppet Documentation - Main and Official reference</li>
+<li>Puppet Modules on: Module Forge and GitHub</li>
+</ul>
+<h3 id="相关软件"><a href="#相关软件" class="headerlink" title="相关软件"></a>相关软件</h3><ul>
+<li>Facter - Complementary tool to retrieve system’s data</li>
+<li>MCollective - Infrastructure Orchestration framework</li>
+<li>Hiera - Key-value lookup tool where Puppet data can be placed</li>
+<li>PuppetDB - Stores all the data generated by Puppet</li>
+<li>Puppet DashBoard - A Puppet Web frontend and External Node Classifier (ENC)</li>
+<li>The Foreman - A well-known third party provisioning tool and Puppet ENC</li>
+<li>Geppetto - A Puppet IDE based on Eclipse</li>
+</ul>
+<h3 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h3><ul>
+<li>使用 EPEL 源可以直接安装,目前稳定版本是3.6.2</li>
+<li><a href="http://docs.puppetlabs.com/guides/puppetlabs_package_repositories.html" target="_blank" rel="external">想尝鲜的添加这个</a></li>
+<li>其它安装方式<a href="http://docs.puppetlabs.com/guides/installation.html" target="_blank" rel="external">看这里</a></li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">yum install puppet        # On clients (nodes)</div><div class="line">yum install puppet-server # On server (master)</div></pre></td></tr></table></figure>
+<h3 id="puppet-版本介绍"><a href="#puppet-版本介绍" class="headerlink" title="puppet 版本介绍"></a>puppet 版本介绍</h3><p>版本号介绍:</p>
+<ol>
+<li>主版本号：当你做了不兼容的API 修改，</li>
+<li>次版本号：当你做了向下兼容的功能性新增，</li>
+<li>修订号：当你做了向下兼容的问题修正。</li>
+</ol>
+<ul>
+<li>0.9.x - 第一个测试版本</li>
+<li>0.10.x - 0.21.x -  各色各样的早期版本</li>
+<li>0.22.x - 0.25.x - 改进并且支持各种操作系统版本</li>
+<li>2.6.x - 许多重要的更改,参数类(见识了某系统恶心的设计)</li>
+<li>2.7.x - 终于开始支持 windows 了</li>
+<li>3.0.x - 许多更改,禁止了动态变量范围,数据绑定.</li>
+<li>3.2.x - 为升级到4做了一些准备,比如环境目录 </li>
+<li>4.x.x - 2015年发布,新的语法分析,有了许多更改和一些向后不兼容的鸟毛病,把 master 做成了一个 all in one 的怪物</li>
+</ul>
+<h2 id="配置管理工具"><a href="#配置管理工具" class="headerlink" title="配置管理工具"></a>配置管理工具</h2><h2 id="周边生态"><a href="#周边生态" class="headerlink" title="周边生态"></a>周边生态</h2>
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2015/08/08/puppet/" data-id="cirsni9xi0007lnt2y8jhe3n3" class="article-share-link">Partager</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-books" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2015/06/06/books/" class="article-date">
+  <time datetime="2015-06-05T16:00:00.000Z" itemprop="datePublished">2015-06-06</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2015/06/06/books/">关于书单的那点事</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="图书"><a href="#图书" class="headerlink" title="图书"></a>图书</h1><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>这里放一些已经读过的,或者没有度过的各种书籍吧.同级别里排名不分先后:)</p>
+<h2 id="运维类"><a href="#运维类" class="headerlink" title="运维类"></a>运维类</h2><h2 id="软件工程"><a href="#软件工程" class="headerlink" title="软件工程"></a>软件工程</h2><h2 id="管理类"><a href="#管理类" class="headerlink" title="管理类"></a>管理类</h2>
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2015/06/06/books/" data-id="cirsni9xf0006lnt2moypugpr" class="article-share-link">Partager</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-mac-tools" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2015/02/20/mac-tools/" class="article-date">
+  <time datetime="2015-02-19T16:00:00.000Z" itemprop="datePublished">2015-02-20</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2015/02/20/mac-tools/">mac tools</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>这个博客写点关于技术相关,好不容易过年的7天有点时间.第一篇写写mac上遇到的各种软件和小技巧吧.</p>
+<p>##工具</p>
+<p>###brew<br>使用方法啥的估计一搜一大堆,这里不多说了.这里说说一些注意事项:</p>
+<ul>
+<li>安装软件之前brew update下,不然可能有一些软件的依赖可能会出现意想不到得小问题</li>
+<li>如果团队使用mac同学比较多,可以自定义用brew tap定义一个团队的formula给大家用</li>
+<li>如果自己对命令行有这特殊的感情,可以加装<a href="http://caskroom.io" target="_blank" rel="external">http://caskroom.io</a> 不过个人感觉,安装软件是个乐趣.没必要那么geek.</li>
+</ul>
+<h2 id="写作"><a href="#写作" class="headerlink" title="写作"></a>写作</h2><h3 id="Mou"><a href="#Mou" class="headerlink" title="Mou"></a>Mou</h3><p>写写技术文档,可以用这个.前一阵子开发者甚至要把这个软件出售.不过后来好了.还能继续更新.</p>
+<p>不过Mou1.0好像要卖180软妹币.现在正在众筹90软妹币,果断购入了.不仅是支持国内的程序员.也是对Mou这个软件的肯定.但是不知道Mou1.0有什么特性.2015年4月份出来.届时在看呗.</p>
+<p><a href="http://25.io/mou/" target="_blank" rel="external">官方地址</a></p>
+<blockquote>
+<p>2015年6月6日更新 这家伙跳票了 v2ex上声讨的声音比较大 哎 就当给国产软件做贡献了吧</p>
+</blockquote>
+<p>###Byword<br>对于要专注写作但是又不是长篇大论严肃的同学.但应该不太适合写技术文档?</p>
+<h3 id="Markdown-Plus"><a href="#Markdown-Plus" class="headerlink" title="Markdown Plus"></a>Markdown Plus</h3><p><a href="http://blog.2baxb.me" target="_blank" rel="external">秦老板</a> 在微博上推荐的. 说实话,能画流程图和对于各种markdown的支持吸引了我.果断抛弃了Mou,投奔这里.不过新软件,有些功能确实还需要继续完善.比如一次只能打开一个文档(也可能是有意为之?).</p>
+<p><a href="https://tylingsoft.com/mdp" target="_blank" rel="external">官方地址</a></p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2015/02/20/mac-tools/" data-id="cirsni9xb0004lnt2uzcmpnrr" class="article-share-link">Partager</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-blog-imgaes" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2015/01/12/blog-imgaes/" class="article-date">
+  <time datetime="2015-01-11T16:00:00.000Z" itemprop="datePublished">2015-01-12</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2015/01/12/blog-imgaes/">关于图床的选择</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>第一篇正经的文章居然是:关于博客床的选择.在大学的时候就有这种纠结.</p>
+<h2 id="dropbox"><a href="#dropbox" class="headerlink" title="dropbox"></a>dropbox</h2><p>要翻x,这个就不多说了.应该是用dropbox的外链功能.风险较高.</p>
+<h2 id="七牛"><a href="#七牛" class="headerlink" title="七牛"></a>七牛</h2><p>需要上传个人拿着自己的身份证的照片认证.才能升级为标准用户.才可以有免费10G的空间和流量.<br>可以自定义域名,比较新.网上负面的评价比较少.看起来还是比较靠谱的.</p>
+<h2 id="upyun"><a href="#upyun" class="headerlink" title="upyun"></a>upyun</h2><p>需要在网站低下加一个logo连接才可以享受10G空间15G流量.懒得弄了.暂时还没有尝试.</p>
+<p>##又拍(Yupoo)<br>老牌的图片托管了,记得我上大学的时候就开始用.对于个人用户还是比较友好的.但是总是感觉用不惯.不知道是界面的缘故还是什么.可能原来只是为了存我自己的照片.个人感觉那就是国内的Flickr.不过后来的又拍云才更像图片托管的概念吧.</p>
+<p>##微博图床<br>呃,这个,临时有个图片分享啥的用用还是不错的.对于图床的部门.呃.了解不太多.不过可能为了微博.这点”浪费”渣浪可能感觉还是可以忍受的.神马CDN都不用操心.so还是量大实惠的.适合对于图片安全性要求不高,但是对于速度有要求的同学.</p>
+<p>##Flickr<br>大学的时候曾经想过一直用它.可惜.后来被雅虎收购,我的ID一直找不到自己喜欢的.当时墙反而不是考虑的因素了.没错就是没有自己喜欢ID才放弃了它.</p>
+<p>##google<br>高中的时候开始用,前一阵子突然发现了一个高二时候的照片.可惜当时没多传几张上去.10年了.那个照片居然还在.可见还是很坚挺的.不过按照最近几年google的路子.没到不会没,就是可能会向SNS方向走了.忘记看有没有外链了.不过google在国内这样.有没有都可以略过了==</p>
+<p>##总结<br>博客暂时体会下七牛,备选upyun.当然要用自己的域名. 不太重要的就微博图床了.对了这里推荐一个软件:dropzone,上传图片啥的还是很方便的.60大洋值得拥有:)</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2015/01/12/blog-imgaes/" data-id="cirsni9x20000lnt2we8xt80l" class="article-share-link">Partager</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-hello-world" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2014/12/16/hello-world/" class="article-date">
+  <time datetime="2014-12-15T16:00:00.000Z" itemprop="datePublished">2014-12-16</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2014/12/16/hello-world/">hello world</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="测试可以写文章吗"><a href="#测试可以写文章吗" class="headerlink" title="测试可以写文章吗?"></a>测试可以写文章吗?</h1><p>记得听博客里的节目说:大部分程序员在折腾完这个之后就会写一个hello world…呃.好吧.</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2014/12/16/hello-world/" data-id="cirsni9xd0005lnt2o6ozh5ks" class="article-share-link">Partager</a>
       
       
     </footer>
@@ -152,15 +523,29 @@
 
   
     
+  <div class="widget-wrap">
+    <h3 class="widget-title">Mot-clés</h3>
+    <div class="widget">
+      <ul class="tag-list"></ul>
+    </div>
+  </div>
+
 
   
     
+  <div class="widget-wrap">
+    <h3 class="widget-title">Nuage de mot-clés</h3>
+    <div class="widget tagcloud">
+      
+    </div>
+  </div>
+
   
     
   <div class="widget-wrap">
     <h3 class="widget-title">Archives</h3>
     <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">August 2016</a></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">August 2016</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2015/08/">August 2015</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2015/06/">June 2015</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2015/02/">February 2015</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2015/01/">January 2015</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2014/12/">December 2014</a></li></ul>
     </div>
   </div>
 
@@ -173,11 +558,23 @@
       <ul>
         
           <li>
+            <a href="/2016/08/13/这些年来做过奇奇怪怪的东西/">(no title)</a>
+          </li>
+        
+          <li>
+            <a href="/2016/08/13/总结/">(no title)</a>
+          </li>
+        
+          <li>
             <a href="/2016/08/13/hello-world/">Hello World</a>
           </li>
         
           <li>
             <a href="/2016/08/13/this-is-a-test-page/">this is a test page</a>
+          </li>
+        
+          <li>
+            <a href="/2015/08/08/puppet/">puppet</a>
           </li>
         
       </ul>
