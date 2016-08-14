@@ -74,7 +74,7 @@
 						<li>Links</li>
 						
 						
-						<li>Über</li>
+						<li>About</li>
 						
 					</ul>
 				</div>
@@ -195,56 +195,11 @@
 
       <div class="body-wrap">
   
-    <article id="post-这些年来做过奇奇怪怪的东西" class="article article-type-post" itemscope itemprop="blogPost">
-  
-    <div class="article-meta">
-      <a href="/2016/08/14/这些年来做过奇奇怪怪的东西/" class="article-date">
-  	<time datetime="2016-08-14T02:14:22.961Z" itemprop="datePublished">2016-08-14</time>
-</a>
-    </div>
-  
-  <div class="article-inner">
-    
-      <input type="hidden" class="isFancy" />
-    
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="这些年来做过奇奇怪怪的东西"><a href="#这些年来做过奇奇怪怪的东西" class="headerlink" title="这些年来做过奇奇怪怪的东西"></a>这些年来做过奇奇怪怪的东西</h1><h2 id="监控系统"><a href="#监控系统" class="headerlink" title="监控系统"></a>监控系统</h2><h3 id="东软"><a href="#东软" class="headerlink" title="东软"></a>东软</h3><p>根据 nagios 的插件标准使用 msmtp命令模拟用户发送邮件行为,发送邮件附带相关 request id 信息,接收端通过 pop 协议收取邮件.通过判断 request id 实现一个发送邮件和接收邮件的闭环监控.由于nagios 没有图表展示,根据当时淘宝的技术分享,使用了 centreon 集成方案作为最后方案.由于监控项和服务项比较少,所以没有碰到相关的性能问题.当然,顺便也用 NRPE 实现了磁盘 CPU 等基础监控.</p>
-<h3 id="新浪微博"><a href="#新浪微博" class="headerlink" title="新浪微博"></a>新浪微博</h3><h4 id="监控"><a href="#监控" class="headerlink" title="监控"></a>监控</h4><p> 使用 centreon 通过 SNMP 协议监控网络流量,依旧使用 NRPE 去监控CPU 内存等资源.外加端口监控. 监控规模扩大到了600台.</p>
-<h4 id="配置管理"><a href="#配置管理" class="headerlink" title="配置管理"></a>配置管理</h4><p>由于当时是 CentOS 5 python 版本是2.4 , yum 对 python 还有着强依赖.又没有现在的virtualenv.虽然当时有fabric.但由于 pyhont 版本要求,并没有使用. 最后选型使用 puppet, 但由于当时的架构师puppet 的版本绑定到数据库中.丧失了 puppet 原有的灵活性.最后大家只使用了一个 puppet 的 exec 执行了一个 shell 脚本.一直沿用了3年.</p>
-<h3 id="纽约时报"><a href="#纽约时报" class="headerlink" title="纽约时报"></a>纽约时报</h3><p>研究学习了 aws 的</p>
-
-      
-    </div>
-    
-    <div class="article-info article-info-index">
-      
-      
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-    
-  </div>
-  
-</article>
-
-
-
-
-
-
-
-
-
-  
     <article id="post-总结" class="article article-type-post" itemscope itemprop="blogPost">
   
     <div class="article-meta">
       <a href="/2016/08/14/总结/" class="article-date">
-  	<time datetime="2016-08-14T02:14:22.956Z" itemprop="datePublished">2016-08-14</time>
+  	<time datetime="2016-08-14T02:30:19.603Z" itemprop="datePublished">2016-08-14</time>
 </a>
     </div>
   
@@ -294,6 +249,51 @@
 <h5 id="编写nagios插件"><a href="#编写nagios插件" class="headerlink" title="编写nagios插件."></a>编写nagios插件.</h5><p>使用Shell,模拟用户真实发送邮件.要模拟内网各种部门的邮件互通(落地在不同的服务器),还要模拟内外网的邮件互通(走MX外网邮件网关),因此逻辑关系会有7*7这么多.体力活. 具体使用的应该社区上的一个现成的插件进行了修改.具体的细节就忘记了==</p>
 <h3 id="渣浪第一期"><a href="#渣浪第一期" class="headerlink" title="渣浪第一期"></a>渣浪第一期</h3><h4 id="背景-1"><a href="#背景-1" class="headerlink" title="背景"></a>背景</h4><p>历史总是那么的相似,刚刚说的那个关于监控经典的情景再度的上演了.但这次由于机器很多.一线的运维开始了被各种报警的轰炸.自产的报警系统没有业务信息.你无法判断一个报警的业务等级是否重要.</p>
 <h4 id="自救"><a href="#自救" class="headerlink" title="自救"></a>自救</h4><h2 id="配管"><a href="#配管" class="headerlink" title="配管"></a>配管</h2><h2 id="其它小工具"><a href="#其它小工具" class="headerlink" title="其它小工具"></a>其它小工具</h2>
+      
+    </div>
+    
+    <div class="article-info article-info-index">
+      
+      
+      
+
+      
+      <div class="clearfix"></div>
+    </div>
+    
+  </div>
+  
+</article>
+
+
+
+
+
+
+
+
+
+  
+    <article id="post-这些年来做过奇奇怪怪的东西" class="article article-type-post" itemscope itemprop="blogPost">
+  
+    <div class="article-meta">
+      <a href="/2016/08/14/这些年来做过奇奇怪怪的东西/" class="article-date">
+  	<time datetime="2016-08-14T02:30:19.596Z" itemprop="datePublished">2016-08-14</time>
+</a>
+    </div>
+  
+  <div class="article-inner">
+    
+      <input type="hidden" class="isFancy" />
+    
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="这些年来做过奇奇怪怪的东西"><a href="#这些年来做过奇奇怪怪的东西" class="headerlink" title="这些年来做过奇奇怪怪的东西"></a>这些年来做过奇奇怪怪的东西</h1><h2 id="监控系统"><a href="#监控系统" class="headerlink" title="监控系统"></a>监控系统</h2><h3 id="东软"><a href="#东软" class="headerlink" title="东软"></a>东软</h3><p>根据 nagios 的插件标准使用 msmtp命令模拟用户发送邮件行为,发送邮件附带相关 request id 信息,接收端通过 pop 协议收取邮件.通过判断 request id 实现一个发送邮件和接收邮件的闭环监控.由于nagios 没有图表展示,根据当时淘宝的技术分享,使用了 centreon 集成方案作为最后方案.由于监控项和服务项比较少,所以没有碰到相关的性能问题.当然,顺便也用 NRPE 实现了磁盘 CPU 等基础监控.</p>
+<h3 id="新浪微博"><a href="#新浪微博" class="headerlink" title="新浪微博"></a>新浪微博</h3><h4 id="监控"><a href="#监控" class="headerlink" title="监控"></a>监控</h4><p> 使用 centreon 通过 SNMP 协议监控网络流量,依旧使用 NRPE 去监控CPU 内存等资源.外加端口监控. 监控规模扩大到了600台.</p>
+<h4 id="配置管理"><a href="#配置管理" class="headerlink" title="配置管理"></a>配置管理</h4><p>由于当时是 CentOS 5 python 版本是2.4 , yum 对 python 还有着强依赖.又没有现在的virtualenv.虽然当时有fabric.但由于 pyhont 版本要求,并没有使用. 最后选型使用 puppet, 但由于当时的架构师puppet 的版本绑定到数据库中.丧失了 puppet 原有的灵活性.最后大家只使用了一个 puppet 的 exec 执行了一个 shell 脚本.一直沿用了3年.</p>
+<h3 id="纽约时报"><a href="#纽约时报" class="headerlink" title="纽约时报"></a>纽约时报</h3><p>研究学习了 aws 的</p>
+
       
     </div>
     
