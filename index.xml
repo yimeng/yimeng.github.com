@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>出租窝</title><link>https://git.yimeng.ch/</link><description>Recent content on 出租窝</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Sat, 31 Oct 2020 09:25:49 +0800</lastBuildDate><atom:link href="https://git.yimeng.ch/index.xml" rel="self" type="application/rss+xml"/><item><title>Grafana最佳实践</title><link>https://git.yimeng.ch/post/2020/grafana-as-code/</link><pubDate>Sat, 31 Oct 2020 09:25:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/grafana-as-code/</guid><description>grafana最佳实践 前言 上次说到，后面会针对Grafana，使用对于监控指标的可视化方面做个大致的介绍。大致内容有
+Grafana最佳实践 Grafana as Code 为什么要讲的是这两点？
+前一阵子在做基础监控的项目，既然做监控就离不开展示，做展示大屏又离不开Grafana。做Grafana就想了解下知道最佳实践，最佳实践里有一条Grafana as Code。结合这个路子，正好在这里说几个做监控时的两个小感悟。
+开源产品的展示页基本都比较丑：由奢入俭难，大部分的开源软件的自带dashboard基本上只是可用的级别。 开发都比较懒，运维也比较懒：如果你是做监控工具的，可以的话就帮开发运维把一些通用的dashboard都做好吧，一穷二白的指望他们自己做不太现实，大家都很忙。不管是出人搞定制化，还是用技术的手段。做工具的服务意识要有。 基于以上的两点，在SRE时代，关于大屏有三个点可能要了解和掌握：
+了解监控指标分类体系，知道在Grafana上如何展示更直观和合理。 使用代码的方式批量去实现1。 做好培训和布道，帮助开发和运维去更好的使用，回到1。 The RED Method: How To Instrument Your Services [B] - Tom Wilkie, Kausal
+https://grafana.com/files/grafanacon_eu_2018/Tom_Wilkie_GrafanaCon_EU_2018.pdf
+将Prometheus，Grafana，RED和USE指标放在一起以改善监控
+一个用于生成Grafana仪表板的Jsonnet库
+Tanka
+网站性能优化
+A beginner’s guide to good Grafana dashboard design
+监控指标分类体系 监控指标体系目前有三种主要的分类方式：
+​ USE Method (from Brendan Gregg): Utilization, Saturation, and Errors
+​ RED Method (from Tom Wilkie): Rate, Errors, and Duration</description></item><item><title>监控最佳实践-指标篇</title><link>https://git.yimeng.ch/post/2020/monitor-metric/</link><pubDate>Sun, 18 Oct 2020 12:43:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/monitor-metric/</guid><description>监控最佳实践-指标篇 监控指标分类体系 监控指标体系目前有三种主要的分类方式：
+​ USE Method (from Brendan Gregg): Utilization, Saturation, and Errors
+​ RED Method (from Tom Wilkie): Rate, Errors, and Duration
+​ Google SRE book: Latency, Traffic, Errors, and Saturation
+USE方法 利用率（Utilization）：资源繁忙的时间百分比，例如节点CPU使用率。 饱和度（Saturation）：资源必须完成的工作量，通常是队列长度或节点负载。 错误（Errors）：错误事件计数。 主要适用场景：
+基础结构中的硬件资源，例如CPU，内存和网络设备。
+RED方法 速率：每秒请求，每天访问人数等。 错误：失败的请求数， 持续时间：这些请求花费的时间，延迟测量的分布 主要适用场景：
+这种方法比较适用于服务级别，尤其是微服务。对于研发提供的服务，建议每个组件的服务都暴露一些这样的指标。因为RED 的方法比较适合做成看板和统计SLO。在grafana最佳实践中：建议一个服务做成一行，横向放置某一接口的速率和错误和持续时间。
+SRE黄金指标 此方法与RED方法相似，但包含饱和度。
+延迟（Latency）：处理请求所需的时间 流量（Traffic）：系统上有多少请求 错误（Errors）：失败请求率 饱和度（Saturation）：系统有多“满”，例如负载和队列积压。 主要适用场景：
+属于较为通用的场景（合集），基本上是个筐，什么都可以往里装。
+这里可以说一下Latency里面有一个重要的概念就是Apdex（Application Performance Index）这是一个从APM角度评价性能的标准，主要用于评价用户体验的。比如打开一个服务用的总延迟是多少，根据这个延迟进行一个评分，最后落到0-1之间。
+指标分类对比 方法没有好坏之分，比如比较以下从USE和SRE的两个角度来对于基础设施监控的维度，其实都是可以的，只要适合自己的系统情况即可。</description></item><item><title>一年前的出租窝，一年后的疫情</title><link>https://git.yimeng.ch/post/2020/covid-19/</link><pubDate>Sat, 19 Sep 2020 12:28:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/covid-19/</guid><description>前言 距离上一次更新已经是一年前了，过年的时候因为疫情。也没有进行一年的总结。还好，这一年其实也没做什么。倒是送走了一位亲人。但2019的好多事情已经想不起来了，2020的记忆多半是在家。也不知道该写啥了。就当再一次的胡言乱语吧。
+这是哪 从博客中国，到bo-blog，到WordPress。用过很多博客，一直到现在还有一个独立托管的WordPress在linnode上。估计也长草了好久了。都是一些以前记录心情的文章。这里应该以后应该还是以技术文章多一些，一年有个年终生活总结。至于平时有些生活的碎碎念，抽个时间把WordPress转移到hugo，然后建立个私人仓库保存吧。
+目标 希望能否一周到两周能有一篇文章，很久以前参加过一个抓虾还是那个RSS聚合网站的活动，每周写一篇博客。当时深知这是一件很难的事情。不过都这个岁数了，应该坚持有点自制力了。希望能够坚持下来。
+下一篇 最近做的监控和CMDB，运维产品原型较多。可能从产品方向做一些分享和总结。
+Todo 需要用github的CI工具把这里做成自动CI/CD的，blog代码化。</description></item><item><title>家用DNS选择</title><link>https://git.yimeng.ch/post/2019/homedns/</link><pubDate>Thu, 19 Sep 2019 22:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/homedns/</guid><description>家用DNS选择 背景 折腾了下家里的路由器之后，发现DHCP分配的IP地址都乱了，以前用IP的一些服务无法运行。
+用MAC绑定倒是可以解决这个问题，但是随之还是需要一个小的CMDB去存储这些信息，维护量还是存在。
+于是就想找一个轻量级的DNS服务端来解决内网DNS的问题。
+需求 必选 支持restful api的注册发现
+轻量级
+依赖少
+迁移方便
+文档丰富
+学习成本低，知识复用
+可选 最好有web页面进行管理
+高可用无所谓
+选型 Bind：比较熟悉了，但是太重，放弃。
+PowerDNS：网上口碑不错，大多数人的选择，但是还是需要了解一些命令行和配置。还是有一定的学习成本的。而且无法迁移到生产上，知识投入产出比较低，感觉只是Bind的改进版。放弃。
+CoreDNS：K8s组件之一，有学习成本但是可以移植到k8s上。有etcd服务发现的加持，二进制+配置文件，迁移和部署比较简单。
+DNSmasq：路由器友好支持，和DHCP在一起。但是缺少服务发现和管理界面，不时之需的时候备选。或者路由器DNSmasq+CoreDNS的组合也是不错的。CoreDNS坏了用DNSmasq接管。
+consul：天生就是服务发现的工具，也自带dns。就是不能递归。不过对于我来说足够用了。
+架构 本地server：CoreDNS+ETCD 配置放到git上作为备份
+本地client：DNSmasq缓存dns查询 转发的coredns上
+路由器DNSmasq负责dhcp</description></item><item><title>数据架构读书笔记</title><link>https://git.yimeng.ch/post/2019/data-architecture/</link><pubDate>Mon, 19 Aug 2019 22:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/data-architecture/</guid><description>数据架构读书笔记 背景 因工作上有需要，用一下午的时间翻看了下数据架构这本书。发现和运维的CMDB、监控等方面其实有很多共通之处，只不过运维是具体的场景。而这本书是从诸多业务场景中抽象出来的统一方法论。这里根据运维场景简单写一些个人的读书笔记。
+第一章：企业数据 企业数据 结构数据 非结构数据（大数据） 重复数据 非重复数据 业务相关性 业务相关 潜在相关 业务不相关 大数据：重复和非重复的非结构数据 分界线：大数据领域中，前者适用于Hadoop，后者适用于用文本分析，有明显的分界线。 从这个图可以看出来ElasticSearch应该属于非结构化中的非重复型数据。
+但如果将这种数据变成了重复性、结构化的数据，那么应该放到哪里呢？
+运维中经常会将日志结构化之后，将大量重复的数据存放到ES中，最后进行监控统计分析。
+这种情况会不会有一个更好的位置更加适合监控统计分析的场景呢？总结了监控中的三种数据所存在的位置：
+1 短期实时数据 ES，用于故障排查、定期巡检等。
+2 长期重复性数据入Hadoop，用于报表分析，容量规划等。
+3 辅助时序性数据库（结构化），进行大屏展示、业务归集等。
+企业数据统计图 业务相关 潜在业务相关 业务不相关 企业数据分析 数据的最终目的是为了分析，分析分两种类型：
+正式分析：审计、财务报表等用途 数据准确性高 非正式分析：准确性要求不高 步骤：
+一 确认数据来源：
+数据：结构化 非结构数据文本 物理介质：纸张 非数据：语音，二进制 数据消解比较困难，需要进行数据集成，进行相关规范化。
+数据的生命周期 生命周期1：进入——&amp;gt;捕获——&amp;gt;组织——&amp;gt;存储。
+生命周期2：集成——&amp;gt;使用——&amp;gt;归档——&amp;gt;丢弃。
+有用性递减曲线
+详细数据&amp;amp;汇总数据有用性递减曲线
+数据积累曲线
+第二章：大数据 大数据是什么 数量大
+廉价存储
+罗马人口统计
+非结构化格式（非DBMS）
+重复型数据&amp;amp;非重复数据 重复型：经常出现同一数值的数据</description></item><item><title>出租窝装修记</title><link>https://git.yimeng.ch/post/2019/hugo/</link><pubDate>Sun, 18 Aug 2019 15:34:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/hugo/</guid><description>出租窝装修记 背景 刚来北京的时候把自己的博客定义成出租窝，想想和那时候的情景还是很贴合的。现实中有了自己的固定的窝了，但网上的这个窝确荒废了很久了。特别是技术的这个屋子，好久没有收拾了。
+平时搜索技术文章的时候，还是能看到一些有毅力的人把自己平时的点点滴滴整理成文章，而自己每年都想重拾的出租窝。一直也没有时间和精力搞，这次的突发事件才发现，如果再不整理的话，就可能什么也没留下。
+还记得10多年前一个feed聚合网站搞的一个比赛，每个星期都要写一篇命题博客，真的好痛苦。但是坚持下来又可以收获很多。这么多的益处还是多写写吧。
+既然重拾，先定几个大原则：
+更新频率：每周更新一篇； 遇到一天没搞定纠结的选择就先选一个； 初期内容为主、表现为辅； 逐步迭代； 总体还是出租窝的title，分为生活屋和技术屋，本次折腾的为技术屋。
+技术选型 生活屋依旧用WordPress，技术屋转移到github上，为了保险有空的话会在国内也做个镜像。
+github上有三个大的阵营：
+jekyll hexo hugo 网上有很多比较 一开始用jekyll 后来用hexo 如今用hugo，理由如下：
+一开始生成静态的初期好像只有jekyll，当时hexo还没有太成熟，就选择了jekyll。 后来大家说hexo还可以了，模板还多，比jekyll先进，加上自己并没有几个文章，迁移成本低，就到了hexo。 本以为可以能多写一篇文章了，没想到写了5+文章后就再也没有了下文。 等又反应过来之后，大家开始高举在微服务、k8s上golang的hugo了，而且hexo的生成速度被大家诟病。好吧开始折腾hugo 真是人算不如天算，技术的更新从ruby nodejs 再到golang 还是那句话，工具其实不重要，重要的是内容。虽然工具可能有这样或那样的不适合。但现实情况是有时候还没到不改工具就无法进行下去的节奏。但是，既然大势所趋，迁移成本还是不那么高，那就转成hugo吧。
+搜索了下相关文章，这两年在这方面还是有很多变化的：
+生成上：写blog也开始用上CI/CD了。 评论上：多说没了 disqus依旧 而github的issues也可以变成评论。 图片上：有一些在线压缩的工具可以继承到CI中，七牛云 微博图床这些不知道是否还好。 CDN上：七牛云好像也变了很多、其它云的对象存储+CDN好像大家也开始有所涉及。 主题上：好像大家对于主题没有了以前的热情，唠的涝死旱的旱死，两极分化。 其它：唯一不变的还是用git管理markdown写的文章。 Git 基础操作这里就略过不讲了三部曲
+git add git commit git push 重点讲一下下面两项
+Git LFS 无论是github还是gitlab目前比较新的版本都支持了LFS，当然也需要git的客户端的版本在1.8.5+
+这样在上传一些图片或者二进制包的时候不至于记录到git的历史记录里，防止git仓库过大。
+git lfs也是三部曲:
+git lfs install git lfs track &amp;ldquo;*.</description></item><item><title>家用功率监控</title><link>https://git.yimeng.ch/post/2019/ammeter/</link><pubDate>Sun, 11 Aug 2019 17:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/ammeter/</guid><description> 智能家居-家用功率监控 智能家居-总功率监控
+背景 研究homelab机器的时候，忘记在哪个论坛里看到一个人的回复：家里整体功耗才是王道
+然后就开始了如下的折腾之路，后来就找不到相关的帖子了，自己摸索之后。帖子又奇迹的出现了，正好也找一些资料供大家参考。我这个最终版可能少了一些自己DIY的过程，多半部分在于应用层。硬件和modbus协议部分自己搞了一周也没搞定，后来感谢有个IoT的同事帮忙，一晚上就搞定了。
+架构 软件架构 监控展现： 因为是运维背景，很容易就想到了平时做的监控系统: nagios历史比较长了，而且数据不是时序数据库，需要集成的东西较多，就没选。 看了一圈综合起来采集数据监控层还是prometheus比较适合，自带时序数据库，部署方便。展现层grafana易集成。 时序数据库就用prometheus自带的吧。懒的折腾influxdb了。
+数据采集： prometheus需要自己根据modbus协议自己写个exporter，正好研究prometheus的golang的SDK，就顺手了个。
+硬件架构 电表 支持modbus的电表不用说了，但因为家里的电箱空间比较小，因此1P的比较适合。
+协议 modbus2tcp: 家里的串口设备也没有那么多，开始有同事建议用TTL转485的，但是TTl的只有树莓派，一直以来感觉树莓派不太稳定。再加上对TCP协议更熟悉一些，所以决定找一个modbus转tcp的转换器，同理也是越小越好。所以就某宝入了一个HF7121，也是冲着体积小去的。一开始买了另一个，体积大不说，调试还没调明白。
+传输 家里没有装修 因此走明线也是可以接受的，所以放弃了各种wifi或者无线的方式。既然可以走线就直接上网线了8根线中的两根，剩下的线还可以用作以后的扩展。
+数据流： Prometheus查询exporter exporter 通过TCP&amp;lt;=&amp;gt;modbus(RS465)&amp;lt;=&amp;gt;电表 进行数据获取 Prometheus把数据存入时序数据库 grafana =&amp;gt; 时序数据库进行查询 这个能干吗： 1. 可以看到自己家的用电量情况 2. 可以看到各种用电器的用电特性（微波炉 变频空调） 3. 加上点人工智能做智能家居 4. 学以致用，初中那些物理知识重新回顾下
+最终效果图： 参考资料 https://bbs.hassbian.com/thread-5634-1-1.html https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=7736 https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1662 https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1472 https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=6081</description></item><item><title>Marslander-火星着陆沙盘回顾</title><link>https://git.yimeng.ch/post/2019/marslander/</link><pubDate>Sat, 18 May 2019 10:40:45 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/marslander/</guid><description>引言 听说凤凰沙盘很久了，这次参加DevOpsDays有幸得到了一张Marslander沙盘。第一次参加沙盘活动，虽然之前对ITIL也有一定的了解，但是这次沙盘将DevOps和ITIL很好的集成了起来，对于长期在一线的运维在流程和协作上会有很大的帮助，拖延了好久，终于抽出空来进行回顾和总结。
+简介 公司已经具备成熟的ITIL流程，包括：事件管理、问题管理、服务台等。现在接到了一个一个登陆火星的计划：需要在这个项目中，用已有的ITIL流程和角色，结合不断纷至沓来的事件、需求、bug、甚至客户的服务满意度调查结果来高效的确保整个项目的顺利进行。
+角色（暂不讨论角色职能）： 产品&amp;amp;销售：
+销售总监：负责根据整体销售目标同产品经理确认每轮需要完成的事情。 产品经理：负责和销售总监分解需求优先级。 IT团队：
+服务台：负责接收各种事件、问题、统计汇总给销售总监和产品经理。 开发 运维 变更发布经理 服务经理 供应商（虽然不属于IT团队，但感觉放到这里更好一些） 反馈回环：
+飞行操作员：负责对相关发布以及改进做出评价。（对事） 客户支持：负责察言观色客户的喜怒哀乐。（对人） 过程（图）： 3个迭代 7个冲刺 每个冲刺都会在Dashboard上显示各个指标（图）
+当前收入 客户满意度 平均解决时间 分组 会场共四个小组：我们小组最后的名称是：只要钱队
+回顾 每次回顾分别从角色、可视化、流程、价值（核心目标）、优先级、质量六个方面进行回顾分析
+角色 可视化 流程 价值（核心目标） 优先级 质量 等待浪费 第一轮 自己和彼此角色定义不清楚 有意识 桌子上看板（沟通不便废弃） 墙上有看板（没有使用） 有意识 角色不清无法建立 最终人员认为是：简单完成任务 无优先级 无质量 等待浪费严重 第二轮 自确认自己的角色定义和职责 改进： 墙上的看板（泳道） 有doing和done 流程依旧没有做好：有瓶颈尚未解决 挣钱 忽略了流程上的瓶颈以及其它指标 无质量 无版本 第三轮 不断提升明确自己的角色定义 完成了可视化 有了真正的BLP 明确了流程，交付物开始增加。 交付了价值，但时间点上交付了错误的价值 从看板中发现价值所在 需求等信息集中到需求池中，但尚未开始排优先级。交付了错误的价值 第四轮 很清晰角色定义 并且互相之间有合作 改进了产生版本回退的概念 第五轮 持续改进不断提升 持续改进不断提升 持续改进不断提升 确保目标正确 持续价值交付 提高满意度 持续改进不断提升 持续改进不断提升 持续改进不断提升 思考 明确角色定义 角色定义沙盘中有10个角色，各个角色都不一定是参与者工作的角色，因此熟悉自己的角色工作职责以及和其它角色建立好沟通就显得尤为重要。</description></item><item><title>Vagrant Alpine</title><link>https://git.yimeng.ch/post/2018/vagrant-alpine/</link><pubDate>Fri, 09 Feb 2018 13:40:05 +0800</pubDate><guid>https://git.yimeng.ch/post/2018/vagrant-alpine/</guid><description>vagrant-alpine自定义实战 背景 在docker CI CD devops各种新鲜事务的潮流下，Pets=&amp;gt;Cattle 也告诉运维要的一个思维的转变。 这个就需要很多的牛来做实验.
+13年在做puppet的CI/CD的时候，单位有一个OpenStack环境，利用api还是很爽的。后来嫌弃创建实例太慢，又开始用了docker。但docker还是有一定的局限性，比如dns和一些系统参数无法修改验证。vagrant也不错，但当时没有一个精简合适的Linux发行版，启动和资源占用还是很耗费电脑的。
+在玩docker的时候，发现了alpine这个系统。几十兆到一百兆，经过优化之后启动大概10s就ok。虽然官方有做好了的vagrant镜像。但是感觉还是不够本地化。就有了自己搞的念头。
+安装alpine alpine下载 如果是virtualbox，选择VIRTUAL版本即可。
+下载回来是一个iso文件，用virtualbox加载引导。用户名root 密码为空。登陆之后运行setup-alpine开始安装。具体内容这里就不说了。可以看这里
+vagrant配置 添加vagrant账户，密码好像无所谓，最好也是vagrant vagrant的公钥放到~/.ssh/下面，注意好.ssh和公钥的权限问题 sudo里加上vagrant root密码为vagrant 网络访问方式需要是NAT，这个在打包的时候vagrant甚至还会检测是否把端口映射关闭掉。 ssh加速需要把sshd里的UseDNS禁止掉，否则可能ssh进去的时候会稍微慢一点 以上是官方的建议，下面来点我自己的干货
+sshd相关配置 sshd里把最大尝试次数设置的多一点,因为在启动的时候vagrant会进行几次尝试，这时候如果出现一些意外的小状况的话，会被sshd直接拒绝，实验环境，密码私钥都是公开的了，也无所谓尝试几次了。
+启动倒计时 启动的时候有3秒的倒计时，如果介意2秒的启动速度的话可以编辑 /etc/update-extlinux.conf文件，设置timeout=1，然后执行update-extlinux，重启即可看到效果
+chrony启动优化 启动的时候chrony会有一些慢，可能是在算本地时钟是否准确。如果介意的话可以编辑/etc/chrony/chrony.conf文件，把initstepslew那行注释掉即可提高启动速度，并且把各种ntp的源找个国内的填上比如 cn.pool.ntp.org
+repo源优化 改成国内的源，并且用@ pin住，如果加了testing等源的话，会提示apk-tools版本太老，可以用
+apk add --upgrade apk-tools@edge 进行升级
+/etc/apk/repositories
+https://mirrors.ustc.edu.cn/alpine/latest-stable/main https://mirrors.ustc.edu.cn/alpine/latest-stable/community @edge https://mirrors.ustc.edu.cn/alpine/edge/main @edgecommunity https://mirrors.ustc.edu.cn/alpine/edge/community @testing https://mirrors.ustc.edu.cn/alpine/edge/testing 最后 找个目录执行
+vagrant package --base vagrant-alpine --output vagrant-alpine.box &amp;ndash;base后面是virtualbox的名称，生成为vagrant-alpine.box。 但别着急编辑vagrantfile，还需要用
+vagrant box list 看一下，否则up执行的可能是已经add过的老box，而不是这个新的。这点尤其要注意，我就被坑了2个多小时。
+调试完毕之后，就可以去https://app.vagrantup.com 注册个账户，把做好的box传上去。hashicorp对于公开的box，是没有限制的。如果要私有化自己的box，5$/m 私有项目数目不限制。</description></item><item><title>Hello</title><link>https://git.yimeng.ch/post/2018/hello/</link><pubDate>Sun, 04 Feb 2018 12:44:45 +0800</pubDate><guid>https://git.yimeng.ch/post/2018/hello/</guid><description>开篇 背景 和所有一开始学习语言的情况一样，这又又又是一个简单的hello world句式的开篇。
+一个博客的好坏，真的不在于用什么，访问速度。最后的内容和背后的人有时候反而更重要一些。
+看一下那些年用过的博客工具，以及自己纠结的经历。也算是给自己30岁之前的那些前博(nv)客(you)们一个交代吧。有些人来了，有些人却又走了。
+分类 以下排名按照记忆中接触和使用的顺序排序：
+博客中国 blogbus bo-blog wordpress hexo hugo 以上并没有把微博客算进去，这个可能需要另开一篇文章写了。在这里加个todo吧
+按照时间算:
+2002-2004 2005-2011 2011+ 按照种类分:
+国内托管 自己搭建 静态托管 发展史 托管时代 在那个移动互联网并没有普及的站长时代，随着web2.0的普及，全民开始生产各种内容。而博客中国在我的印象里应该是比较早的为大家提供博客托管服务的，后来文艺的blogbus，娱乐的新浪博客。都是同一时期的产物。
+博客中国有点类似于当时的qq空间，群众基础好，受众面比较广。
+blogbus当属比较好的，有点类似于现在的豆瓣以及青云，界面上走的是文艺范。
+以上都是托管，对于技术来讲并没有什么太好介绍的。不过还是要感谢这些BSP，为那场浪潮开了一个好头。
+自建时代 后来一些有基础的站长，甚至后来的老徐都开始自立门户。这时候就开始催生了一些国内国外的博客程序。
+国内的bo-blog当时搭建简单，界面友好，自带tag等时尚功能。在当时可以说做到了开箱即用，而赢得了一大批国内用户的簇拥。
+而国外的wordpress，其实定位是CMS，比如中文化，搭建资料，搭建难度对于一些小站长都着实有一些难度。再加上不太符合中国人的模板审美。只有一些技术范的站长使用。
+静态托管时代 再后来应该随着ruby的流行，github的流行。大家开始了使用github开始托管各种静态站点
+当我开始关注这一块的时候，jekyll应该已经很成熟了。 大家都开始转向hexo，当然我也没有落俗。跟着用hexo在github上写了几篇。后来发现生成速度确实很慢，加上自己很懒一直也没有很好的写几篇技术文章。
+在大家开始各种公众号发文章，各处演讲的时候。有时候想想是不是应该也把一些想法啥的写下来。不过再开始用的时候发现hexo的生成速度还是不能忍，不知道是老macbook 2013不行了还是咋，又开始了又一轮磨刀不误砍柴工的旅程。当然这过程也不是一帆风顺的。
+我和hego golang的流行和极快的生成速度让大家对于hugo的追捧。尝试了下，速度确实很快！就它了。
+在搭建的过程中，hugo比起hexo的模板，毕竟golang和nodejs，分别就是一前一后的帮派，想要极快的速度就别强求漂亮的模板了。
+看得上眼的，都需要一些前段功底去修改一些细节。于是花了一天稍微研究了下hugo的模板系统，发现没有前端和golang的模板基础，还真的需要一段时间来学习，成本很高。
+为了不忘初心的继续愉快的写文章，最后挑选了一个模板，post和list页可以使用就收手开始写文章</description></item><item><title/><link>https://git.yimeng.ch/post/2019/writing-thinging/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://git.yimeng.ch/post/2019/writing-thinging/</guid><description> 金字塔原理读书笔记 写作的逻辑 为什么选择金字塔结构 金字塔中的子结构 如何构建金字塔结构 序言部分的具体写法 演绎与归纳的区别 思考的逻辑 确定逻辑的顺序
+概括分组西乡
+解决问题的逻辑 演示的逻辑</description></item></channel></rss>
