@@ -1,0 +1,128 @@
+<!doctype html><html lang=zh-cn><title>pulumi-quickstart | 出租窝</title>
+<meta charset=utf-8><meta name=generator content="Hugo 0.125.3"><meta name=viewport content="width=device-width,initial-scale=1"><link rel=canonical href=https://git.yimeng.ch/post/2021/pulumi-quickstart/><link rel=alternate type=application/rss+xml href title=出租窝><link rel=stylesheet href=https://git.yimeng.ch/css/theme.css><link rel=stylesheet href=https://git.yimeng.ch/css/classes.css><header class=dark><h2><a href=https://git.yimeng.ch/>出租窝</a></h2><nav></nav></header><article><header><h1><a href=https://git.yimeng.ch/post/2021/pulumi-quickstart/>pulumi-quickstart</a></h1><p class=meta><time datetime=2021-09-04T09:19:00+08:00>September 04, 2021</time></p></header><h2 id=背景>背景</h2><p>基础设施即代码的当红小生，大有把大哥terraform比下去的趋势。有评价说terraform是配置文件即代码，而pulumi才是真正的基础设施既代码。说白了就是terraform被人诟病的HCL语言过于“刻板”，甚至有点当年<a href=https://puppet.com/docs/puppet/7/puppet_language.html>puppet那有一定入门门槛的语言一样</a>。所以喜欢自由的devops们都对于pulumi的门下，甚至<a href=https://www.thoughtworks.com/zh-cn/radar/platforms/pulumi>thoughtworks技术雷达里在2021年10月将等级从评估提到了实验级别</a>。 所以借着研究基础设施既代码的机会，研究下这位当红小生吧。</p><h2 id=结论>结论</h2><p>把结论放到这里各位可以各取所需，不太适合的就可以不看下面的详细过程了</p><ul><li>小众Provider需要时间和经历尝试，如果只是像proxmox这样自己玩玩homelab的，平时创建个机器啥的。ansible和terraform都可以满足你的需要。不一定非要用pulumi。</li><li>尽量用python，调试资料啥的都好找一些。尝试了下golang，有点小放弃。主要是用的人不太多。而且编译成一个文件执行的机会可能也不大。大多数时候还是shell+bin。当然这个依据你的技术栈而定。</li><li>可以用用它的k8s模块，目前还没有尝试。不过k8s的yml确实跟terraform puppet这些前辈们有一拼。不知道这个效果如何。</li><li>最后总结下：如果terraform能满足你的需要，用着吧。如果有一些实在不能满足需要的，再来看看pulumi。或许有惊喜。</li></ul><h2 id=过程>过程</h2><h3 id=阿里云>阿里云</h3><h4 id=环境准备>环境准备</h4><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell><span style=display:flex><span>export ALICLOUD_ACCESS_KEY<span style=color:#f92672>=</span>xxxxx
+</span></span><span style=display:flex><span>export ALICLOUD_SECRET_KEY<span style=color:#f92672>=</span>xxxxxx
+</span></span><span style=display:flex><span>mkdir quickstart <span style=color:#f92672>&amp;&amp;</span> cd quickstart
+</span></span><span style=display:flex><span>pulumi new python --force
+</span></span><span style=display:flex><span>source venv/bin/activate
+</span></span></code></pre></div><h4 id=mainpy>main.py</h4><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=display:flex><span><span style=color:#e6db74>&#34;&#34;&#34;A Python Pulumi program&#34;&#34;&#34;</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> pulumi
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> pulumi_alicloud <span style=color:#66d9ef>as</span> alicloud
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>vpc <span style=color:#f92672>=</span> alicloud<span style=color:#f92672>.</span>vpc<span style=color:#f92672>.</span>Network(<span style=color:#e6db74>&#34;my-vpc&#34;</span>,cidr_block<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;172.16.0.0/12&#34;</span>)
+</span></span><span style=display:flex><span>az <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;cn-beijing-c&#34;</span>
+</span></span><span style=display:flex><span>sg <span style=color:#f92672>=</span> alicloud<span style=color:#f92672>.</span>ecs<span style=color:#f92672>.</span>SecurityGroup(<span style=color:#e6db74>&#34;pulumi_sg&#34;</span>,description<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;pulumi security_groups&#34;</span>,vpc_id<span style=color:#f92672>=</span>vpc<span style=color:#f92672>.</span>id)
+</span></span><span style=display:flex><span>vswitch <span style=color:#f92672>=</span> alicloud<span style=color:#f92672>.</span>vpc<span style=color:#f92672>.</span>Switch(<span style=color:#e6db74>&#34;pulumi_vswitch&#34;</span>,zone_id<span style=color:#f92672>=</span>az,cidr_block<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;172.16.0.0/21&#34;</span>,vpc_id<span style=color:#f92672>=</span>vpc<span style=color:#f92672>.</span>id)
+</span></span><span style=display:flex><span>sg_ids<span style=color:#f92672>=</span> [sg<span style=color:#f92672>.</span>id]
+</span></span><span style=display:flex><span>sg_rule<span style=color:#f92672>=</span> alicloud<span style=color:#f92672>.</span>ecs<span style=color:#f92672>.</span>SecurityGroupRule(<span style=color:#e6db74>&#34;sg_rule&#34;</span>,security_group_id<span style=color:#f92672>=</span>sg<span style=color:#f92672>.</span>id,ip_protocol <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;tcp&#34;</span>, type<span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;ingress&#34;</span>,nic_type    <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;intranet&#34;</span>,port_range<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;22/22&#34;</span>,cidr_ip<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;0.0.0.0/0&#34;</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>instance<span style=color:#f92672>=</span>alicloud<span style=color:#f92672>.</span>ecs<span style=color:#f92672>.</span>Instance(<span style=color:#e6db74>&#34;ecs-instance2&#34;</span>,availability_zone<span style=color:#f92672>=</span>az,instance_type <span style=color:#f92672>=</span><span style=color:#e6db74>&#34;ecs.t5-lc2m1.nano&#34;</span> , security_groups <span style=color:#f92672>=</span>sg_ids,image_id<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;ubuntu_18_04_64_20G_alibase_20190624.vhd&#34;</span>,instance_name <span style=color:#f92672>=</span><span style=color:#e6db74>&#34;ecsCreatedByPulumi2&#34;</span>,vswitch_id<span style=color:#f92672>=</span>vswitch<span style=color:#f92672>.</span>id,internet_max_bandwidth_out <span style=color:#f92672>=</span> <span style=color:#ae81ff>10</span>)
+</span></span></code></pre></div><h3 id=proxmox>proxmox</h3><h4 id=环境准备-1>环境准备</h4><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell><span style=display:flex><span> git clone https://github.com/ryan4yin/pulumi-proxmox.git
+</span></span><span style=display:flex><span> cd pulumi-proxmox
+</span></span><span style=display:flex><span> brew tap pulumi/tap
+</span></span><span style=display:flex><span> brew install pulumictl
+</span></span><span style=display:flex><span> make build_sdks
+</span></span><span style=display:flex><span> make install_python_sdk
+</span></span><span style=display:flex><span> pulumi plugin install resource proxmox v0.0.6
+</span></span></code></pre></div><h4 id=mainpy-1>main.py</h4><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=display:flex><span><span style=color:#f92672>import</span> os
+</span></span><span style=display:flex><span><span style=color:#f92672>from</span> pathlib <span style=color:#f92672>import</span> Path
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> pulumi
+</span></span><span style=display:flex><span><span style=color:#f92672>from</span> pulumi_proxmox <span style=color:#f92672>import</span> Provider, ProviderVirtualEnvironmentArgs
+</span></span><span style=display:flex><span><span style=color:#f92672>from</span> pulumi_proxmox.vm <span style=color:#f92672>import</span> <span style=color:#f92672>*</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e># this provider cannot read configuration from Environment variables yet,</span>
+</span></span><span style=display:flex><span><span style=color:#75715e># You must manually pass parameters by instantiating a custom provider</span>
+</span></span><span style=display:flex><span>proxmox_provider <span style=color:#f92672>=</span> Provider(
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;proxmox-provider&#34;</span>,
+</span></span><span style=display:flex><span>    virtual_environment<span style=color:#f92672>=</span>ProviderVirtualEnvironmentArgs(
+</span></span><span style=display:flex><span>        endpoint<span style=color:#f92672>=</span>os<span style=color:#f92672>.</span>getenv(<span style=color:#e6db74>&#34;PROXMOX_VE_ENDPOINT&#34;</span>),
+</span></span><span style=display:flex><span>        insecure<span style=color:#f92672>=</span>os<span style=color:#f92672>.</span>getenv(<span style=color:#e6db74>&#34;PROXMOX_VE_INSECURE&#34;</span>) <span style=color:#f92672>==</span> <span style=color:#e6db74>&#34;true&#34;</span>,
+</span></span><span style=display:flex><span>        username<span style=color:#f92672>=</span>os<span style=color:#f92672>.</span>getenv(<span style=color:#e6db74>&#34;PROXMOX_VE_USERNAME&#34;</span>),
+</span></span><span style=display:flex><span>        password<span style=color:#f92672>=</span>os<span style=color:#f92672>.</span>getenv(<span style=color:#e6db74>&#34;PROXMOX_VE_PASSWORD&#34;</span>)
+</span></span><span style=display:flex><span>    )
+</span></span><span style=display:flex><span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e># create a virtual machine</span>
+</span></span><span style=display:flex><span>VirtualMachine(
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;ubuntu-vm-0&#34;</span>,
+</span></span><span style=display:flex><span>    name<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;ubuntu-vm-0&#34;</span>,
+</span></span><span style=display:flex><span>    description<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;a ubuntu vm for test&#34;</span>,
+</span></span><span style=display:flex><span>    node_name<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;homelab&#34;</span>,
+</span></span><span style=display:flex><span>    on_boot<span style=color:#f92672>=</span><span style=color:#66d9ef>True</span>,  <span style=color:#75715e># start the vm during system bootup</span>
+</span></span><span style=display:flex><span>    reboot<span style=color:#f92672>=</span><span style=color:#66d9ef>False</span>,  <span style=color:#75715e># reboot the vm after it was created successfully</span>
+</span></span><span style=display:flex><span>    started<span style=color:#f92672>=</span><span style=color:#66d9ef>True</span>,  <span style=color:#75715e># start the vm after it was created successfully</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e># clone from a vm template</span>
+</span></span><span style=display:flex><span>    clone<span style=color:#f92672>=</span>VirtualMachineCloneArgs(
+</span></span><span style=display:flex><span>        vm_id<span style=color:#f92672>=</span><span style=color:#ae81ff>110</span>,  <span style=color:#75715e># template&#39;s vmId</span>
+</span></span><span style=display:flex><span>        full<span style=color:#f92672>=</span><span style=color:#66d9ef>False</span>,  <span style=color:#75715e># full clone, not linked clone</span>
+</span></span><span style=display:flex><span>        datastore_id<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;local-lvm&#34;</span>,  <span style=color:#75715e># template&#39;s datastore</span>
+</span></span><span style=display:flex><span>        node_name<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;homelab&#34;</span>,  <span style=color:#75715e># template&#39;s node name</span>
+</span></span><span style=display:flex><span>    ),
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e># resource pool name</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>#pool_id=&#34;local&#34;,</span>
+</span></span><span style=display:flex><span>    cpu<span style=color:#f92672>=</span>VirtualMachineCpuArgs(
+</span></span><span style=display:flex><span>        cores<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span>,
+</span></span><span style=display:flex><span>        sockets<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span>,
+</span></span><span style=display:flex><span>        type<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;kvm64&#34;</span>,  <span style=color:#75715e># set it to kvm64 for better vm migration</span>
+</span></span><span style=display:flex><span>    ),
+</span></span><span style=display:flex><span>    memory<span style=color:#f92672>=</span>VirtualMachineMemoryArgs(
+</span></span><span style=display:flex><span>        dedicated<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;4096&#34;</span>,  <span style=color:#75715e># unit: MB</span>
+</span></span><span style=display:flex><span>        shared<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;4096&#34;</span>
+</span></span><span style=display:flex><span>    ),
+</span></span><span style=display:flex><span>    operating_system<span style=color:#f92672>=</span>VirtualMachineOperatingSystemArgs(
+</span></span><span style=display:flex><span>        type<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;l26&#34;</span>  <span style=color:#75715e># l26: linux2.6-linux5.x</span>
+</span></span><span style=display:flex><span>    ),
+</span></span><span style=display:flex><span>    agent<span style=color:#f92672>=</span>VirtualMachineAgentArgs(
+</span></span><span style=display:flex><span>        <span style=color:#75715e># please confirm you have qemu-guest-agent in your vm before enable this!</span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e># otherwise this may cause the vm to fail to shutdown/reboot!</span>
+</span></span><span style=display:flex><span>        enabled<span style=color:#f92672>=</span><span style=color:#66d9ef>False</span>,
+</span></span><span style=display:flex><span>        timeout<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;60s&#34;</span>,  <span style=color:#75715e># timeout</span>
+</span></span><span style=display:flex><span>    ),
+</span></span><span style=display:flex><span>    disks<span style=color:#f92672>=</span>[
+</span></span><span style=display:flex><span>        VirtualMachineDiskArgs(
+</span></span><span style=display:flex><span>            interface<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;scsi0&#34;</span>,
+</span></span><span style=display:flex><span>            datastore_id<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;local-lvm&#34;</span>,
+</span></span><span style=display:flex><span>            size<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;30&#34;</span>,  <span style=color:#75715e># unit: GB</span>
+</span></span><span style=display:flex><span>        )
+</span></span><span style=display:flex><span>    ],
+</span></span><span style=display:flex><span>    network_devices<span style=color:#f92672>=</span>[
+</span></span><span style=display:flex><span>        VirtualMachineNetworkDeviceArgs(
+</span></span><span style=display:flex><span>            enabled<span style=color:#f92672>=</span><span style=color:#66d9ef>True</span>,
+</span></span><span style=display:flex><span>            bridge<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;vmbr0&#34;</span>,
+</span></span><span style=display:flex><span>            model<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;virtio&#34;</span>,
+</span></span><span style=display:flex><span>            vlan_id<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>,
+</span></span><span style=display:flex><span>        )
+</span></span><span style=display:flex><span>    ],
+</span></span><span style=display:flex><span>    <span style=color:#75715e># cloud init configuration</span>
+</span></span><span style=display:flex><span>    initialization<span style=color:#f92672>=</span>VirtualMachineInitializationArgs(
+</span></span><span style=display:flex><span>        type<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;nocloud&#34;</span>,  <span style=color:#75715e># &#39;nocloud&#39; for linux,  &#39;configdrive2&#39; for windows</span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>#datastore_id=&#34;local-lvm&#34;,</span>
+</span></span><span style=display:flex><span>        dns<span style=color:#f92672>=</span>VirtualMachineInitializationDnsArgs(
+</span></span><span style=display:flex><span>            <span style=color:#75715e># dns servers,</span>
+</span></span><span style=display:flex><span>            server<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;114.114.114.114,8.8.8.8&#34;</span>,
+</span></span><span style=display:flex><span>        ),
+</span></span><span style=display:flex><span>        ip_configs<span style=color:#f92672>=</span>[
+</span></span><span style=display:flex><span>            VirtualMachineInitializationIpConfigArgs(
+</span></span><span style=display:flex><span>                ipv4<span style=color:#f92672>=</span>VirtualMachineInitializationIpConfigIpv4Args(
+</span></span><span style=display:flex><span>                    address<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;192.168.1.111/24&#34;</span>,
+</span></span><span style=display:flex><span>                    gateway<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;192.168.1.1&#34;</span>
+</span></span><span style=display:flex><span>                )
+</span></span><span style=display:flex><span>            )
+</span></span><span style=display:flex><span>        ],
+</span></span><span style=display:flex><span>        user_account<span style=color:#f92672>=</span>VirtualMachineInitializationUserAccountArgs(
+</span></span><span style=display:flex><span>            <span style=color:#75715e># set root&#39;s ssh key</span>
+</span></span><span style=display:flex><span>            keys<span style=color:#f92672>=</span>[
+</span></span><span style=display:flex><span>                Path(<span style=color:#e6db74>&#34;ssh-common.pub&#34;</span>)<span style=color:#f92672>.</span>read_text()
+</span></span><span style=display:flex><span>            ],
+</span></span><span style=display:flex><span>            password<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;chage_me&#34;</span>,  <span style=color:#75715e># needed when login from console</span>
+</span></span><span style=display:flex><span>            username<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;root&#34;</span>,
+</span></span><span style=display:flex><span>        )
+</span></span><span style=display:flex><span>    ),
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e># use custom provider</span>
+</span></span><span style=display:flex><span>    opts<span style=color:#f92672>=</span>pulumi<span style=color:#f92672>.</span>ResourceOptions(
+</span></span><span style=display:flex><span>        provider<span style=color:#f92672>=</span>proxmox_provider
+</span></span><span style=display:flex><span>    )
+</span></span><span style=display:flex><span>)
+</span></span></code></pre></div></article></html>

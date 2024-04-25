@@ -1,0 +1,72 @@
+<!doctype html><html lang=zh-cn><title>利用免费的SaaS监控homelab | 出租窝</title>
+<meta charset=utf-8><meta name=generator content="Hugo 0.125.3"><meta name=viewport content="width=device-width,initial-scale=1"><link rel=canonical href=https://git.yimeng.ch/post/2023/homelab-monitor/><link rel=alternate type=application/rss+xml href title=出租窝><link rel=stylesheet href=https://git.yimeng.ch/css/theme.css><link rel=stylesheet href=https://git.yimeng.ch/css/classes.css><header class=dark><h2><a href=https://git.yimeng.ch/>出租窝</a></h2><nav></nav></header><article><header><h1><a href=https://git.yimeng.ch/post/2023/homelab-monitor/>利用免费的SaaS监控homelab</a></h1><p class=meta><time datetime=2023-12-05T09:19:00+08:00>December 05, 2023</time></p></header><h2 id=背景>背景</h2><p>因为家里的homelab和NAS服务器怕娃进行物理性破坏，放到了一个稍微有点密闭的空间里。因此温度监控就比较重要，防止过热产生的各种问题。</p><h2 id=收集>收集</h2><p>homelab是个AMD的小主机，通过sensors命令可以很容易得到，NAS则需要使用SNMP获取到。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span>root@homelab:~# sensors
+</span></span><span style=display:flex><span>iwlwifi_1-virtual-0
+</span></span><span style=display:flex><span>Adapter: Virtual device
+</span></span><span style=display:flex><span>temp1:            N/A
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>nvme-pci-0100
+</span></span><span style=display:flex><span>Adapter: PCI adapter
+</span></span><span style=display:flex><span>Composite:    +38.9°C  <span style=color:#f92672>(</span>low  <span style=color:#f92672>=</span>  -0.1°C, high <span style=color:#f92672>=</span> +74.8°C<span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>                       <span style=color:#f92672>(</span>crit <span style=color:#f92672>=</span> +79.8°C<span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>amdgpu-pci-0600
+</span></span><span style=display:flex><span>Adapter: PCI adapter
+</span></span><span style=display:flex><span>vddgfx:        1.36 V
+</span></span><span style=display:flex><span>vddnb:       756.00 mV
+</span></span><span style=display:flex><span>edge:         +45.0°C
+</span></span><span style=display:flex><span>PPT:          11.00 W
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>k10temp-pci-00c3
+</span></span><span style=display:flex><span>Adapter: PCI adapter
+</span></span><span style=display:flex><span>Tctl:         +69.8°C
+</span></span></code></pre></div><h2 id=服务端选型>服务端选型</h2><p>方法有了，那么下一步就是找一个免费白嫖的SaaS监控服务。国内有观测yun，国外有grafana，datadog等。国产的guance云用了下，用户体验过于“专业”，小人愚笨，感觉入门门槛比较高，放弃。datadog抄guance云，用户体验如出一辙，也放弃。剩下grafana了，虽然grafana照比以前也复杂臃肿了很多，但依旧在用户体验和技术投入产出比上有这一定优势，虽然存在国外站点传输上的问题，但稍微不稳定也还可以接受，谁让咱是白嫖呢。最后定格grafana cloud服务。</p><p>grafana cloud包含如下组件：</p><ul><li>Grafana Instance</li><li>Prometheus Endpoint</li><li>Graphite Endpoint</li><li>Logs Backend</li><li>Traces Backend</li><li>Performance Testing</li><li>Unlimited Dashboards</li><li>Community Support</li></ul><h2 id=收集端选型>收集端选型</h2><p>其中Graphite Endpoint还可以直接支持proxmox的<a href=https://pve.proxmox.com/wiki/External_Metric_Server>External Metric Server</a> ，但需要安装一个Carbon-Relay-NG进行转发。懒得装了，反而找到一个<a href=https://github.com/prometheus/graphite_exporter>graphite_exporter</a> 可以用来把接收到的graphite数据转成Prometheus的exporter。尝试了下，也还可以。但是有可能有一些限制，比如因为性能问题，一段时间的指标数据会丢弃啥的。</p><p>但因为温度的格式是非结构的，因此如何把相关格式通过shell转换成格式化数据就变成了一个技术问题。再次感叹下现在chatGPT的伟大，把这段格式扔进去，然后chatGPT就帮你写好了。相关脚本如下，可供参考：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#75715e>#!/bin/bash
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>
+</span></span><span style=display:flex><span><span style=color:#75715e># 您的输入数据</span>
+</span></span><span style=display:flex><span>data<span style=color:#f92672>=</span><span style=color:#e6db74>$&#39;Composite: +37.9°C (low = -0.1°C, high = +74.8°C) (crit = +79.8°C)\n\nvddgfx: 1.32 V\nvddnb: 749.00 m
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>V\nedge: +42.0°C\nPPT: 5.00 W\n\nTctl: +63.4°C&#39;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e># 函数来提取和格式化指标</span>
+</span></span><span style=display:flex><span>parse_metric<span style=color:#f92672>()</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    local metric<span style=color:#f92672>=</span>$1
+</span></span><span style=display:flex><span>    echo <span style=color:#e6db74>&#34;</span>$data<span style=color:#e6db74>&#34;</span> | awk -F <span style=color:#e6db74>&#39;: &#39;</span> -v metric<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;</span>$metric<span style=color:#e6db74>&#34;</span> <span style=color:#e6db74>&#39;
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    $1 == metric {
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>        gsub(/[+°C,VWm]/, &#34;&#34;, $2);
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>        print metric &#34;,device=\&#34;your_device_name\&#34;,adapter=\&#34;PCI adapter\&#34;,source=\&#34;grafana\&#34; metric=&#34;$2
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    }&#39;</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e># 输出指定的指标</span>
+</span></span><span style=display:flex><span>parse_metric <span style=color:#e6db74>&#34;Composite&#34;</span>
+</span></span><span style=display:flex><span>parse_metric <span style=color:#e6db74>&#34;vddgfx&#34;</span>
+</span></span><span style=display:flex><span>parse_metric <span style=color:#e6db74>&#34;vddnb&#34;</span>
+</span></span><span style=display:flex><span>parse_metric <span style=color:#e6db74>&#34;edge&#34;</span>
+</span></span><span style=display:flex><span>parse_metric <span style=color:#e6db74>&#34;PPT&#34;</span>
+</span></span><span style=display:flex><span>parse_metric <span style=color:#e6db74>&#34;Tctl&#34;</span>
+</span></span></code></pre></div><p>非常的方便，因为上传到grafana cloud的话，有一个比较简便的方式是实用curl，因此最终的脚本如下，使用了senso</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#75715e>#!/bin/bash
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#75715e># 获取传感器数据并解析</span>
+</span></span><span style=display:flex><span>sensors amdgpu-pci-0600 k10temp-pci-00c3 nvme-pci-0100 -j | jq -r <span style=color:#e6db74>&#39;
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    to_entries[] |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    .key as $device |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    .value |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    to_entries[] |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    select(.key != &#34;Adapter&#34;) |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    .key as $metric |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    .value |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    to_entries[] |
+</span></span></span><span style=display:flex><span><span style=color:#e6db74>    &#34;\(.key),device=\($device),source=grafana_cloud_docs metric=\(.value)&#34;&#39;</span> |
+</span></span><span style=display:flex><span><span style=color:#66d9ef>while</span> IFS<span style=color:#f92672>=</span> read -r line; <span style=color:#66d9ef>do</span>
+</span></span><span style=display:flex><span>    curl -X POST -H <span style=color:#e6db74>&#34;Authorization: Bearer </span>$API_KEY<span style=color:#e6db74>&#34;</span> -H <span style=color:#e6db74>&#34;Content-Type: text/plain&#34;</span> <span style=color:#e6db74>&#34;</span>$URL<span style=color:#e6db74>&#34;</span> -d <span style=color:#e6db74>&#34;</span>$line<span style=color:#e6db74>&#34;</span>
+</span></span><span style=display:flex><span>    echo  $line
+</span></span><span style=display:flex><span><span style=color:#66d9ef>done</span>
+</span></span></code></pre></div><p>也顺便让chatGPT帮忙写了一个30s定时执行的systemd服务</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-toml data-lang=toml><span style=display:flex><span><span style=color:#75715e># /etc/systemd/system/sensor_data.service</span>
+</span></span><span style=display:flex><span>[<span style=color:#a6e22e>Unit</span>]
+</span></span><span style=display:flex><span><span style=color:#a6e22e>Description</span>=<span style=color:#a6e22e>Sensor</span> <span style=color:#a6e22e>Data</span> <span style=color:#a6e22e>Collection</span> <span style=color:#a6e22e>Service</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>[<span style=color:#a6e22e>Service</span>]
+</span></span><span style=display:flex><span><span style=color:#a6e22e>ExecStart</span>=<span style=color:#960050;background-color:#1e0010>/</span><span style=color:#a6e22e>usr</span><span style=color:#960050;background-color:#1e0010>/</span><span style=color:#a6e22e>local</span><span style=color:#960050;background-color:#1e0010>/</span><span style=color:#a6e22e>bin</span><span style=color:#960050;background-color:#1e0010>/</span><span style=color:#a6e22e>sensor_data</span>.<span style=color:#a6e22e>sh</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>Restart</span>=<span style=color:#a6e22e>always</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>RestartSec</span>=<span style=color:#ae81ff>30</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>[<span style=color:#a6e22e>Install</span>]
+</span></span><span style=display:flex><span><span style=color:#a6e22e>WantedBy</span>=<span style=color:#a6e22e>multi-user</span>.<span style=color:#a6e22e>target</span>
+</span></span></code></pre></div><p>至此，就可以在grafana cloud直接出图了，前后应该花费大概30分钟-1小时（主要是找方案和调试的时间）。如果没有chatGPT可能需要4-8小时的时间。效率提升还是比较明显的，主要是可以将精力主要放到找寻解决方案上，而不是具体的实现细节。</p><h2 id=成果>成果</h2><p><img src=http://pic.chenym.net/blog/image-20231204110031249.png alt=image-20231204110031249></p><h2 id=遗留问题>遗留问题</h2><p>CPU温度和功率是否有相关关系？</p><p>如何监控除了温度其它的性能指标？</p><p>SaaS上的指标如何优化？</p></article></html>

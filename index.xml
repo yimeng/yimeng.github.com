@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>出租窝</title><link>https://git.yimeng.ch/</link><description>Recent content on 出租窝</description><generator>Hugo</generator><language>zh-cn</language><lastBuildDate>Sat, 20 Apr 2024 10:45:00 +0800</lastBuildDate><atom:link href="https://git.yimeng.ch/index.xml" rel="self" type="application/rss+xml"/><item><title>运维培训总结</title><link>https://git.yimeng.ch/post/2024/%E8%BF%90%E7%BB%B4%E5%9F%B9%E8%AE%AD%E6%80%BB%E7%BB%93/</link><pubDate>Sat, 20 Apr 2024 10:45:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2024/%E8%BF%90%E7%BB%B4%E5%9F%B9%E8%AE%AD%E6%80%BB%E7%BB%93/</guid><description>前言 420有幸做了人生第一次的运维培训，如果给自己打一个分的话100分估计只能给个60分。趁着热乎劲还在总结一下。
+做的好的地方 从业以来碰到的各种问题和经验都能经过思考输出，在讲课的时候即便没有讲稿也可以持续的输出。
+互动做的还不错，可以有效的进行一些提问和让线下的同学产生一些“矛盾”和讨论。
+不紧张，在40来个老运维面前，能够给做到不怯场沟通。
+前期准备了一些补充材料，弥补了课件内容的方向单一的问题。
+做的不好的地方 没有前期充分调研客户的部门分布和领导期望，挑起了中心和地方部门之间关于告警之间的激烈讨论。
+材料依旧需要精进，尽管之前把一本经典的运维书籍读了好多遍，但依旧感觉内容还有提高的地方。
+应该加强一些课程上的比赛和激励机制，这次忽略了激励机制，虽然内容比较好，但他们自己之间的互动可能更好。
+加强体力锻炼，本次两天的课程，其中第一天他们有一些自己部门的分享，也参加了下。基本上第一天接近于12小时，第二天也超过了8小时的课程。所以体力消耗上还是非常大的。
+做完培训上的分析，接下来可以说说本次案例企业遇到的一些问题和解决之道。
+背景/问题 企业分为中心运维和区域运维两个部分，刚刚实行了双向汇报的机制。平时坐到一起沟通的机会甚少。
+区域运维的水平不一。有的人员充足，有的只有一个单点的运维。有的责任心较强，可以主动的处理故障和处理告警。但有的只能处于被动接受告警的情况，且对于系统的架构并不了解。
+中心运维强管理，虽然嘴上说着有商有量。但还是做的ITIL那种管控的文化。修改一个监控的阈值都要进行讨论审批，理由是怕下面的运维瞎改。而且阈值是经过中心专家评审过的，应该不会有太大的问题。应急响应是要求区域运维3分钟响应告警，30分钟处理完毕。
+以上是这种架构组织经常遇到的情况，其实只是大家屁股坐的不一样并且看待一个相同的事件的时候，有这不一样的文化的问题。倒是有点类似于《置身事内》那本书里写的中央与地方的关系一样。
+如何破解 破解之道估计长期只能依靠时间上的组织文化变更，短期只能依靠哪个部门更加得宠和嗓门大。这需要一个过程，但是在过程的期间，可能出现各种阵痛。比如部门间的不和谐、人员流失、相关经验得不到传承、故障频出等等问题。
+好在这个部门的运维负责人不是空降，而是从本企业一线提拔上来的老运维。对于运维的责任心以及各种细节都比较了解。但也对于山高皇帝远的区域运维的管控力上力不从心。只能从加强一些中心运维的能力和管控方面着手。并且HR部门对于运维方面的培训和团队建设也比较重视，毕竟运维出现过很多次问题和故障直接影响了公司的收入。以前这个运维团队是放到了研发团队里，出现了几次故障，公司越发的感觉运维的重要性，把运维团队独立了出来。
+如果一个企业的业务和运维强相关，例如运营商、电力这种广义的运维没有，基本上就相当于不存在本行业一样。这样的运维可能更幸福一些，但也偏保守一些。而金融、地产、物流等这种没了互联网可能也照样活（有些行业没了互联网现在可能也不太行，但互联网对于他们应该是锦上添花的事情）的行业。可能互联网+的情况是需要一个创新和速度。因为失败了成本也比较低，不如搏一把。
+这个被培训的企业就是在一个偏传统的运维模式，但是用的技术却比较新。且受制于甲方爸爸的硬件和资金的需求。自己只作为运维方。所以中心运维强管理的模式还是比较适合，只是可能前期用力过猛，地方有反弹罢了。但可能也存在一定的风险就是前期的一些阵痛和后期可能又被各地诸侯直接打回原形的问题。
+培训时遇到的一些问题 没记住每一个问题，但大多是关注在如何“甩锅”的问题，因为变更的时候让他们背锅的地方和边界有点模糊不清。加上研发和甲方爸爸的双重压力，以及中心运维的强管制。这些问题其实都可以用前期规范变更操作进行规避。
+还有一些问题是关于变更的技术问题，比如如何灰度、监控如何处理毛刺等问题。这些其实都有一定的最佳实践，想比技术来说，已经算比较好解决的了。
+最后一种问题其实还是集中在中心和地方的矛盾上，地方说人少没办法符合中心的要求，中心说地方没有好的责任心和主动意识。这种问题还是建议他们进行轮岗，增强一种同理心。然而，在这种矛盾已经快到了激化的情况下，不知道他们能不能听得进去。
+就像《高效能团队模式》里说的平台团队一样，对于平台团队的定义应该是：
+平台团队的目标是使流动式团队能够以高度自治的方式交付工作。流动式团队在生产环境中拥有构建、运维、修复应用的所有权限。平台团队提供的内部服务使得流动式团队无须开发底层服务，降低了认知负荷。
+而目前大多数的实际是：平台管理团队。除了用我的平台，还要管理你的行为。例如：调整监控阈值要经过管理团队的审批。平台使用的问题要去阅读厚厚的说明手册。
+关于中心化的监控 这个问题也很有趣，在介绍关于监控的监控的问题上，引出了是否要有一个中心化的监控去监控各个区域的监控系统的问题。因为是中心和区域的关系，区域目前有一个自己的监控系统，把一些告警信息发送到中心统一的告警平台中。来实现告警的追踪。下一步打算把各个区域的监控数据集中收集展示。但却没有想好为何一份数据要存储两遍以及如何使用的问题。
+其实这个问题最重要的就是ROI，监控数据存了两份其实并不是重点。例如如下的一些考量点则是存在这个中心化监控的主要问题：
+统一展示：这个使用一个grafana就可以完美的低成本解决。 监控的监控：这个如果中心监控出现问题，也会让监控的监控出现单点问题。 数据集中：大量的无效数据在中心进行处理和告警灵活性和成本都不是一个最佳解决。 集中告警：告警目前各个区域的监控系统直接推送给各个区域本身的运维人员，集中了再告警反而增加了路径和故障点。 以上的可能不太是一个集中监控存在的意义，但一下可能对于集中监控存在的意义有了一些不同的理由：
+统一的数据的分析：这个集中的意义就是一个数据湖的概念，过于分散数据可能不便于分析。 需要一些业务统计上的数据：不收集全量的监控数据，而是收集一些全局视角的数据，且不用于告警。可能是比较收敛的一个方式，兼顾了成本和管理的平衡。 总结 通过这次真正意义上的首秀，坚定了之后的一个大致的方向。以前的各种经验和一些好的书籍整理成自己的知识库。可以的话形成相关的书籍。不管有没有用，都是对自己这么多年来从业的一个交代。</description></item><item><title>露营车调研</title><link>https://git.yimeng.ch/post/2024/folding-wagon/</link><pubDate>Fri, 08 Mar 2024 10:45:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2024/folding-wagon/</guid><description>背景 春天来了又要把露营车提上日程来了，以前加入了北欢的露营车到购物车。但是有看到了有贵州钢铁侠的电动露营车。因此开始了调研之路。
+种类 电动露营车 看了下主要有三种
+咸鱼上有一些自己改的 成品 贵州钢铁侠 咸鱼魔改 咸鱼上一些自己改的基本在1K以内的价格，也是一个电机、一个电控、一个遥控器。如下图: 不过这种大多数是模仿贵州钢铁侠的文案，没验证过具体货品情况，但胜在便宜。支持种类大多是马科图、珠穆朗玛这两种工模露营车。
+成品 podoa pqdoq 这两个牌子基本都在500左右 前轮靠拢，不知道具体效果如何。续航3-6公里，称重和容量都很模糊。想尝尝鲜的可以尝试。 贵州钢铁侠 在B站和小红书以及抖音上都有相关视频和晒单的。大多是好评，当然也有老公买完，老婆吐槽没啥用的用户。价格比较美丽 全套下来基本在3K左右（包含露营车本身）。主要构成为电动套件、露营车、电池三部分。电动套件大概2K 露营车和电池分别500左右。续航20公里。根据视频介绍，有一些走直线的算法，以及各种人性化的考量。各位可以B站或者淘宝进行搜索。
+最新的为4.0版本，大概有三种型号
+普通版本（普通露营车） 碳钢版本（重量轻） MAX载重版本（容量大） 非电动露营车 这个种类可以叫做常规露营车。 根据材质区分也分为碳钢和铝合金两种。铝合金比较轻，比较推荐。 根据是否有翻斗也可以分为翻斗款和普通款。翻斗就是尾部可以放到，有点类似于皮卡后面的翻斗。 根据收纳方式分为聚拢款盒折叠款，聚拢款就是变成一根棍的感觉。折叠就是变成一个片状的感觉。具体可以根据自己家和后备箱的收纳方式自由选择。 还有是否带轴承、拉手是否人性化、轮子宽窄等等区别。各位看官可以移步B站各种评测学习。
+上面是大致的一种分类方式，具体牌子大致如下：
+马科途 珠穆拉玛 牧高笛 挪客 北欢 京东京造
+马科途（珠穆拉玛） 马科途和珠穆拉玛电动露营车改造的比较多，原因大概是车架比较“统一”，淘宝上也有很多类似车架的版本（比如贵州钢铁侠推荐的几个车架）。
+牧高笛 牧高笛的S2和S1买的人也比较多，其中S1有一个山姆版本，价格在300左右，比较受欢迎。
+挪客 挪客在B站的一些up主那有推荐，具体没太了解过。
+北欢 北欢在小红书上喜欢的程度比较多，有pro和plus版本。pro有翻斗，plus容量更大一些。
+京东京造 京东京造应该属于性价比比较高的那种，价格比较有优势。
+以上就是个人在整个搜索过程中的一些主观印象。具体每个品牌的容量和功能以及细节还需要各位自己做功课进行甄别。
+我的选择 鉴于我的钱包告诉我，你暂时可能也许不需要一个电动版本的露营车。但是我允许你具备改造成电动自行车的能力。因此就选择了一个贵州钢铁侠推荐的车架。方便后面改造成电动露营车。目前就先作为普通的露营车使用。一个从河北发货的，铝合金的容量200L的露营车，自重大概10.5KG，加上个遮阳伞共计大概600左右。后续如果有需要，在追加一个1799的改装套件+500块钱的电池即可。具体参数如下：</description></item><item><title>办公室实验环境</title><link>https://git.yimeng.ch/post/2024/office-lab/</link><pubDate>Fri, 02 Feb 2024 10:45:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2024/office-lab/</guid><description>背景 日结工的公司发了一个加入域的windows11笔记本，没有管理员权限。只能放到那里当成一个大的打卡机，有点浪费。如何有效的利用起来？
+方案 正好对于gitops比较感兴趣，因此规划了如下几个场景功能：
+虚拟机 git仓库 利用vagrant和ci做一些镜像的测试工作 部署图 部署图如上，选取了gitea的一个二进制进行部署。然后使用cloudflare进行了泛域名解析，用traefik来进行域名的路由。gitea的runner负责在windows机器上执行各种命令。控制vagrant和VirtualBox来进行镜像打包。有时候这个机器的wifi可能不太好用，使用runner定时重启一下。别问我为啥不用windows自己的服务。没有管理员权限只能用这些骚操作了。
+代码 相关配置文件可以移步如下git仓库进行获取
+https://github.com/yimeng/office-lab.git 问题 这个方案在runner那调用powershell或者cmd的时候会有一些问题，例如执行时间太长（调用vagrant的时候下载box），runner中看不到回显，排错问题等等。因此执行一些简单的任务还可以，用于ci操作系统镜像还是有点问题。可以建议将runner放到VirtualBox的linux的虚拟机中进行执行。避开windows没有管理员权限和调试的窘境。
+扩展 如果可以还可以用cloudflare把相关端口暴露出去，这样就可以通过外网访问办公室的实验环境了，但需要做好相应的安全措施。但目前没有管理员权限，只能作罢。</description></item><item><title>由terraform-proxmox-provider想到的</title><link>https://git.yimeng.ch/post/2023/homelab-proxmox-terraform-plugin/</link><pubDate>Thu, 07 Dec 2023 18:22:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2023/homelab-proxmox-terraform-plugin/</guid><description>背景 前几天看到一个直播，发现了一个国内的创业公司发布了一个IaC的平台系统。原理就是利用Terraform和K8S的能力，为开发者提供了一个基础设施创建以及编排的平台。试用了下，虽然还不太完善，但总体的功能和思路还是非常不错的。轻量级，可以利用Terraform的插件生态（pulumi也是这么搞，不然适配各种云的成本真的很高）。
+因为这个系统依赖Terraform的模块，以前正好写过一个基于proxmox的Terraform模块 。然而，由于我的proxmox升级到了8.0.4了之后，使用了telmete的proxmox provider的插件，就出现了crashed的现象，详见Error: The terraform-provider-proxmox_v2.9.14 plugin crashed! (Proxmox 8.0.4 latest update) 的讨论。
+然后就开始有人谈论关于telmete的provider是否已经不更新了：
+Is the Proxmox provider dead?
+还有人已经转向了另一个proxmox的provider
+然后经过一番努力，还是有人进行了一个修复Fix: memory type conversion panic 不过可能需要重新的编译或者等待。
+开源 当软件产品更新越来越快，开源软件之间的适配也越来越繁琐。君不见k8s的API和周边生态，真的是日新月异。各种微服务的复杂度在实施的时候也是各种百花齐放。经历过centos的大版本缓慢的变化的时期，步入了容器微服务的时代。不知道这事是好是坏。宠物和牛的变化的观念可能占据了主流。但是商业产品在这一点上可能会变成一个“卖点”，解决各种版本的兼容和适配问题。毕竟客户面临这还有维护成本和历史债务问题，这部分虽然不好啃，但可能依旧是刚需。
+话说回来，我这个重启Terraform的proxmox的模块，打算明天看看是否能够升级下插件版本。另一方面，也需要转向另一个插件进行下模块重构了。虽然有成本，但也不得不做。毕竟开源就是有这种问题，随大流不一定技术正确，但可能是市场正确的唯一选择。只是这么做就可惜了好多好的技术和产品了。（例如SUN）
+后记 留个坑，待更新。</description></item><item><title>利用免费的SaaS监控homelab-指标优化</title><link>https://git.yimeng.ch/post/2023/homelab-monitor-metrics/</link><pubDate>Tue, 05 Dec 2023 13:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2023/homelab-monitor-metrics/</guid><description>背景 上一篇文章写到如何使用SaaS来监控homelab，但是除了温度和功耗，主机的一些基础信息也需要一起更新起来。但，我们用的是SaaS。每一个metric都是跟钱息息相关的。所以对于指标的精简就显得尤其重要。其中的原则就是：放到SaaS上的一定是自己知道并且看懂的指标，看不懂以及无用的指标可以收集，但建议放到本地，不建议集中存储。
+部署图 在homelab中加入了本地的prometheus，在remote write给grafana cloud的时候，将自己理解并且需要的指标写到grafana cloud中。本地根据磁盘大小进行存放，云端尽量让每个指标都发挥人民币的价值。
+问题 这个架构并不复杂，但是如何治理相关的指标就成了下一个问题。例如：
+node-exporter这个插件究竟收集了哪些指标，哪些指标是常用的。 remote write如何进行指标的选择性发送。 饭要一口一口的吃，问题要一个一个的解决。我们先解决remote write如何方便的过滤相关指标这个问题。感谢万能的chatGPT，这个问题chatGPT给出了很好的解答（水一下）
+在 Prometheus 的上下文中，&amp;ldquo;remote write&amp;rdquo; 是一个功能，它允许 Prometheus 将收集到的监控数据发送到远程存储系统。这通常用于长期数据存储、数据聚合或在多个 Prometheus 实例之间共享数据。关于 &amp;ldquo;label 治理&amp;rdquo;（label management），这通常涉及到管理和优化 Prometheus 中的标签（labels），以确保数据的有效组织和查询性能。
+问题一 prometheus 中的remote write如何进行label治理：
+在使用 Prometheus 的 remote write 功能进行 label 治理时，可以考虑以下几个方面：
+标签重命名和删除：在将数据发送到远程存储之前，可以重命名或删除某些标签。这有助于减少存储需求和简化查询。这通常通过 Prometheus 的配置文件中的 metric_relabel_configs 部分来实现。
+保持标签一致性：确保在整个监控系统中使用一致的标签名称和值，这有助于查询时的效率和准确性。
+避免高基数标签：高基数标签（即具有大量唯一值的标签，如用户 ID）可能会导致存储和查询性能问题。在将数据发送到远程存储之前，考虑删除或聚合这些标签。
+使用标签过滤：在配置 remote write 时，可以指定只发送包含特定标签的时间序列。这有助于减少发送到远程存储的数据量。
+优化标签集：限制每个时间序列中标签的数量，避免不必要的标签，以减少存储需求和提高查询效率。
+使用远程存储的特性：某些远程存储解决方案可能提供额外的标签管理功能，如自动标签聚合或特殊的索引机制。
+要实现这些策略，你需要编辑 Prometheus 的配置文件，特别是 remote_write 部分，并可能需要调整你的远程存储解决方案的配置。建议在进行任何重大更改之前，先在测试环境中验证这些更改的影响。
+问题二 详细介绍下在remote write的时候使用标签过滤和优化标签集
+在 Prometheus 中使用 remote write 功能时，进行标签过滤和优化标签集是一种有效的数据管理策略。这些技术有助于减少发送到远程存储的数据量，提高存储效率，同时保持重要数据的完整性。下面详细介绍这两个方面：
+标签过滤 (Label Filtering) 在 Prometheus 的 remote write 配置中，你可以指定只发送包含特定标签的时间序列。这意味着只有满足特定条件的时间序列会被发送到远程存储系统。</description></item><item><title>利用免费的SaaS监控homelab</title><link>https://git.yimeng.ch/post/2023/homelab-monitor/</link><pubDate>Tue, 05 Dec 2023 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2023/homelab-monitor/</guid><description>背景 因为家里的homelab和NAS服务器怕娃进行物理性破坏，放到了一个稍微有点密闭的空间里。因此温度监控就比较重要，防止过热产生的各种问题。
+收集 homelab是个AMD的小主机，通过sensors命令可以很容易得到，NAS则需要使用SNMP获取到。
+root@homelab:~# sensors iwlwifi_1-virtual-0 Adapter: Virtual device temp1: N/A nvme-pci-0100 Adapter: PCI adapter Composite: +38.9°C (low = -0.1°C, high = +74.8°C) (crit = +79.8°C) amdgpu-pci-0600 Adapter: PCI adapter vddgfx: 1.36 V vddnb: 756.00 mV edge: +45.0°C PPT: 11.00 W k10temp-pci-00c3 Adapter: PCI adapter Tctl: +69.8°C 服务端选型 方法有了，那么下一步就是找一个免费白嫖的SaaS监控服务。国内有观测yun，国外有grafana，datadog等。国产的guance云用了下，用户体验过于“专业”，小人愚笨，感觉入门门槛比较高，放弃。datadog抄guance云，用户体验如出一辙，也放弃。剩下grafana了，虽然grafana照比以前也复杂臃肿了很多，但依旧在用户体验和技术投入产出比上有这一定优势，虽然存在国外站点传输上的问题，但稍微不稳定也还可以接受，谁让咱是白嫖呢。最后定格grafana cloud服务。
+grafana cloud包含如下组件：
+Grafana Instance Prometheus Endpoint Graphite Endpoint Logs Backend Traces Backend Performance Testing Unlimited Dashboards Community Support 收集端选型 其中Graphite Endpoint还可以直接支持proxmox的External Metric Server ，但需要安装一个Carbon-Relay-NG进行转发。懒得装了，反而找到一个graphite_exporter 可以用来把接收到的graphite数据转成Prometheus的exporter。尝试了下，也还可以。但是有可能有一些限制，比如因为性能问题，一段时间的指标数据会丢弃啥的。</description></item><item><title>小型办公室网络指北</title><link>https://git.yimeng.ch/post/2022/office-network/</link><pubDate>Wed, 22 Jun 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/office-network/</guid><description>背景 尽力过自己加的homelab网络、某创业公司从10来人到200来人的网络架构搭建。感觉创业公司在办公网络方面还存在着一定这样那样的不足和缺失。正好把经历过的看到过的都写下来 希望能够帮助有需要的朋友。
+需求 每个公司可能业务不太一样，但是在办公网络方面的需求大体相同。无非可能就以下几点
+安全稳定快速的上网和互相传输文件 办公室的小机房内部需求 打印、NAS等一些办公服务 安全方面的一些需求，以及突破安全的一些需求 总体其实就这么多，但是这几个概括的需求往往暗藏着各种细节魔鬼。我们一个一个来剖析。
+接入商选择 好多办公楼提供的大多数是企业宽带接入，上下行的带宽是对等的。当然如果企业想省钱搞到了民用的宽带接入也是很不错的事情。
+既然是企业宽带接入，但不代表你就可以跟三大运营商直接签署接入协议。小区物业还有各种方式阻挠宽带运营商的接入，更别说写字楼了，在写字楼里会有各色各样的牛鬼蛇神，把控着这个领域的事情。
+如果你碰巧，写字楼里有2家以上的接入商，那么建议是，两家都用。这样可以最大程度上保证SLA和比价。当然缺点也是有的，两个带宽如何使用，技术方面倒是需要好好的进行下规划。
+当然最后，在选择接入商的事情上，还是希望各位能够在选择写字楼的时候就提前问好。毕竟员工上网的幸福指数也是非常重要的。
+带宽选择 无论是三大运营商还是各种牛鬼蛇神提供的接入服务。都会牵涉到几个技术点：
+是否有独立的公网IP 出口带宽在哪里 是否有缓存或者多重NAT 接入的路由IP放在哪 是否是BGP网络，路由是否可以优化 SLA是多少，罚则是什么，除了故障多长时间响应和解决 支持几天的测试周期 价格账单周期是怎样，是否有返点等 以上每一项都会有背后的逻辑：
+是否有独立的公网IP：这个建议一定要有1-2个，方便大家使用连回办公室的VPN，或者远程连回办公室进行调试使用。这个在疫情的情况下尤其的重要。而且，独立公网IP对于云上或者其它地方使用防火墙黑白名单也是有这非常重要的作用的。
+出口带宽在哪里：三大运营商不在这个讨论范围内，说的是那些牛鬼蛇神们。这些接入商往往有着各种稀奇古怪的网络资源，所以即使你在北京，你通过他们提供的带宽也可能会显示河北张家口。原因就是，他们有着一些城域网的资源，但是确没有本地出口的资源。所以就异地的来这么一下，这种行为大多是悄悄的做的，因为有规定，这种倒卖带宽的行为是禁止的。所以，私下里或者问问友商大概的情况，在价格允许的条件下，差不多就行了。毕竟大家也都是要恰饭滴。
+是否有缓存或者多重NAT：如果说出口带宽的乾坤大挪移还能接受的话，这个行为如果不明示或者说明白了就有点完全不能忍受了。本来小接入商对一些家用的常用影视图片资源做缓存无可厚非（随着个人信息隐私的完善，这种行为好像也是不太光明磊落的了）。但是企业不一样啊，里面牵涉到一些商业机密，鬼知道你把我访问的信息缓存下来用来做什么。所以很多企业在这方面非常的敏感。但不缓存的话，可能网络速度不能达标。所以这个如果非常在意，一定要把握底线。
+接入的路由IP放在哪：有几种情况，如果你有独立的公网IP，会给你分配4个公网IP，一对互联地址配置到你的路由器上。另一种情况就是，你把路由器的默认路由指向接入商的路由器上。还有PPPoE的形式（多用于上网接入）。这个牵涉到你对路由地址的控制权上，是否可以灵活的把控接入商的各种指向和切换。需要在前期问清楚。
+是否是BGP网络：一些接入商宣称自己是BGP网络，但是策略路由还是有自己的AS号这个可是两个量级的事情了。所以，BGP平时可能看不出来的优势，但是在出现故障的时候，你会感谢接入商有BGP的。
+SLA是多少：这个聊胜于无吧，有时候大晚上人家例行维护啥的也不影响业务，也没办法算SLA，如果是两个接入商，</description></item><item><title>k3s</title><link>https://git.yimeng.ch/post/2022/k3s/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/k3s/</guid><description>K3S学习笔记 https://comphilip.wordpress.com/2021/05/30/k3s-thing-better-ipvs-solution/
+https://comphilip.wordpress.com/2021/05/22/k3s-thing-ipvs-failure/
+https://weinan.io/2020/05/23/k3s.html
+https://www.modb.pro/db/383288
+https://metallb.universe.tf/configuration/k3s/
+https://int32bit.sh/2019/11/28/IPVS从入门到精通kube-proxy实现原理/
+K3S Master startup command: k3s server --node-external-ip 172.30.80.2 --advertise-address 172.30.81.2 --node-ip 172.30.81.2 --kube-proxy-arg proxy-mode=ipvs K3S Worker startup command: k3s agent --node-external-ip 172.30.80.3 --node-ip 172.30.81.3 --kube-proxy-arg proxy-mode=ipvs ################### master export INSTALL_K3S_CHANNEL=latest export INSTALL_K3S_MIRROR=cn export LIP=&amp;#34;100.127.255.135&amp;#34; export EIP=&amp;#34;100.127.255.133&amp;#34; export INSTALL_K3S_EXEC=&amp;#34;server --tls-san $LIP --node-ip $LIP --advertise-address $LIP --node-external-ip $EIP --pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --kube-proxy-arg proxy-mode=ipvs masquerade-all=true --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34; #export INSTALL_K3S_EXEC=&amp;#34;server --pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34; # export INSTALL_K3S_EXEC=&amp;#34;server --tls-san $IP --node-ip $IP --node-external-ip $IP --pause-image registry.</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts1/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts1/</guid><description>家庭电量可观测性（背景） 背景 2018年的时候在某智能家居论坛看到一句话：
+前一段有个帖子里，说米家智能插座增强版可以看功率，我提到了只看一个插座的功率没太大意义，要看就看整个家庭的用电。说了一句：“家里整体功耗才是王道”引得网友回复……这下好了，自己挖的坑自己得埋！
+其实当时也沉浸在米家智能插座看功率的阶段，对于这句话颇有不服，但看在作者自己已经动手做出来的基础上。感觉，似乎自己也能试试看？或者能从另一个新的视角发现点什么呢？
+说做就做，但 纸上得来终觉浅 绝知此事要躬行。真的把那个帖子看完，发现要干成这件事还需要以下几个条件：
+智能家居玩家：有较强的兴趣爱好去折腾，不然中间遇到一些困难很可能就浅尝辄止了。况且这种改造还伴随着一些”风险“。 有一些电力方面的知识：要对自己家的电路有所了解，知道空开和漏保，以及电线平方数和电流的关系。不然改造起来是很危险的。 一些物联网方面的知识：因为获取电能表并不是我们的家用电器，还需要一些工业协议去获取，获取的时候还需要一些物联网编程吗的知识，比如modbus协议，比特率，CRC校验码等。 一些编程和网络方面的知识：最后，还需要一些高级语言编程以及监控（可观测性）方面的知识。而且只会编程可能还不够，还要从可维护性、便利性、可靠性、经济性等等去选择你的最终技术实现。 说实话，做之前感觉一件很简单的事情，真的去做的时候才发现，原来需要考虑的真的还不少。不过饭要一口一口的吃，遇到什么就解决什么就好了。前前后后折腾了3-6个月，包括硬件选型、一些奇怪的知识的查漏补缺等等。咨询了各种搞IoT的小伙伴，以及获得了各种他们各种有经验的调试方法。因此这个文章可能要分为背景、方案、硬件、软件来写了。最初版是2019年写完，但只单纯的介绍实现方式，没有对心路历程进行描述。虽然时隔久远，有些细节已经不太记得。但是还是希望好好记录下这个过程。顺道在最后贡献个PR稿：）
+方案 背景介绍完了，终于可以开始介绍方案（纠结历程）了。
+协议 modbus：只要跟一些工控设备打交道 基本上绕不过去的一个协议，说白了就是如何跟工控设备打交道。
+MQTT：如果要把IoT接入某些大的平台，就需要这种IoT专有协议去跟云打交道。粗略的看了下，除了报文的标准，其它部分感觉有点类似于消息队列。
+TCP：这个就是大家正常使用的，但是对于设备要求最好是性能比较好的。因为实现TCP甚至HTTP序列化还是需要一定的计算能力的。
+最后，既然绕不开modbus，就找了一个TCP&amp;lt;=&amp;gt;modbus的转换器。而MQTT，可能在以后直接接入云平台的时候会进行选择。
+硬件 自己DIY 根据论坛里老哥的介绍需要准备
+培正检测模块PZEM-004T ：这个用于检测电流电压等参数，需要接到强电电路里，然后通过TTL输出。 220v交流转5v直流模块：通过把220v转成5v，给esp供电使用。 esp-01模块：灵魂人物，通过TTL取数据，再通过esp的能力上传到各种数据库。 其实那位老哥以前就有一个成品商业的modbus检测的，只是自己想DIY把控自己的数据下。但其实看下来还是需要很多的知识储备的。但这个方案也是最便宜的。几个模块和成品比起来能便宜一半以上的钱，总成本可以控制在100以内（刨除人的时间成本）。
+买成品 说实话，我对于TTL了解不多，而且esp这个神器也没有怎么玩过。所以开始自己的选型，并且根据自己家里的情况定了几个原则：
+电表箱太小 体积一定要小 强电箱里东西越少越好 协议要通用 最好是可扩展性较强的协议 因此
+检测模块选了一个单火线，并且只有1P的 DDS5188-1P
+转换模块选了一个微型的HF7121 通过5V供电并且支持RJ45。（这个供电电复用的RJ45其中的两根线）如果要支持更多协议或者不想编程太多的话，可以选择ZLAN5144J这种的，就是体积有点过大，并且价格也很美丽了。
+至此 当硬件和相关的协议都确认了下来之后，就开始折腾之路了。最终的大体的架构如下。
+第一篇就是本篇会讲讲背景介绍。
+第二篇会开始讲物理上的连接情况。
+第三篇会讲下软件的情况。
+第四篇会进行下总结和以后的展望。</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts2/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts2/</guid><description>家庭电量可观测性（硬件篇） 硬件选择 上一篇说完硬件的选择原则，这篇就开始说说硬件之间的连接部分。
+其实说白了就是下图中的蓝色部分，而蓝色部分最重要的两个就是电能表和协议转换器了。
+电能表
+协议转换器
+总体架构 连接方式 电能表与空开 先说电表，大概是这个样子的。把电量表接到了空开的前面是因为，外面还有一个电表和空开。这样即使我家跳闸断电，只要外面的空开没有断。电能表还是可以工作的，配合检测端的UPS，是可以作为停电监测用的。（全停电冰箱里的肉杀伤力极强，别问我怎么知道的）
+转换器供电连接 然后再说RS486和供电部分，这个转换器端用RJ45网口接入，通过他配的线集成了RS485+供电/网线的功能。
+可以看到供电部分使用2和3针脚。找了一根没用的USB线，把其中的1,4针脚接出来。
+光猫的USB1,4针脚，接入转换器的2,3针脚。完成供电。
+转换器的数据连接 转换器的1,4针脚，接入电能表的数据AB接口，完成数据的接入。
+转换器与电脑之前的网线连接：
+电脑访问转换器页面 剩下就是很简单的插上网线，转换器会获取到DHCP地址。通过web页面进行访问即可。剩下的就是如何通过软件来获取信息了。
+后记 这部分最重要的要就是安全，因为牵涉到强电改造。一定不要在带电的情况下操作。还有就是注意好正负极，防止短路。
+数据连接部分主要注意，线一定要弄牢。485的线没有任何提示你是否已经牢固，是否有松动的情况。这种情况最不好排查了。也是玩硬件里最头疼的一部分。毕竟不像网线那样不牢固会丢包，会降速，能从指示灯上看到。
+还有一点就是 提前规划好连接，做好一些准备。比如我这个电量表买回来，才发现火线的供电确实有了。但是忘记还要有个零线才能用，所以就稍微飞了一根零线回程。还好不耽误用，但是如果是其它不能改造的地方就比较尴尬了。</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts3/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts3/</guid><description>家庭电量可观测性（软件篇） 整体架构 软件部分总体架构图如图绿色部分，主要分为采集、数据处理、存储和展现。
+采集 做了这么长时间的运维监控，prometheus已经当然不让的成了一个既定事实的标准。（为以前的nagios感到有点惋惜），所以采集端自然而然的使用prometheus的exporter的标准。通过golang自己写一个exporter，每次调用exporter的时候，这个exporter通过tcp去转换器那里获取数据。这样可以适合大多数拥抱开源的各种生态。如果实在遇到不支持的，数据转换的成本也不高。不得不说，现在真是一个生态和标准先行的时代啊。这个采集的程序已经放到了github上，有需要的可以自取。https://github.com/yimeng/eport 里面没有什么注释只能各位自己看了，尤其是二进制的那部分，可能需要根据自己的实际情况进行修改。
+处理 这块其实没有什么处理的逻辑，只是把数据读取出来，在展现的时候进行了一个电量的计算，其实完全可以在这部分进行个预处理。把电流电压直接处理成电量。用前期的计算能力换取后期的查询压力。
+存储 本着能用托管尽量别自建的原则，选取了观测云与Grafana Cloud。
+观测云的免费额度深得我心。再加上手机端的加持。完全可以承担这部分的职责。只是后期发现存储只能存储7天。对于想对全年进行一个统计的需求略显不足。
+观测云
+每天 8,000 个 Trace 数量
+每天 10 万次任务调用
+DataKit不限量（3,000条时间线）
+每天 2,000 个 PV 数量
+数据保留 7 天
+每天 100 万条日志类数据
+每天 20 万次 API 拨测
+钉钉 / 微信官方服务群
+grafana的托管的免费额度也是非常给力的
+Grafana Cloud
+10,000 时间线
+保存 14天
+50GB的日志存储
+50GB的调用链存储
+3个团队账号
+grafana面板免费使用
+对于这两家的免费额度 还是非常有好感的。虽然两家都不太能满足长时间统计分析的需求。但这也无可厚非。毕竟那个需求属于数据范畴了，跟可观测性关系不大。至于其它公有云的可观测性吗，不是我等穷人可以用得起的。
+至于，那个分析统计的需求，架构图上还是自己搭建了一个prometheus和grafana的，毕竟自建在某些时候成本还是趋于边际效益递减的。
+展现 展现这里先用了观测云的面板，因为grafana的面板有点小复杂，需要慢慢的熟悉，毕竟不是当时只支持一两种数据源的grafana了。
+关于展现，这个是最终版。数据其实就电流电压和功率，其中功率也是可以通过电流电压计算得到的。但是这里却可以演化出来很多可观测数据。例如每日用电量（看每天花了多少钱），功率变化率（是不是有大用电器开了），没实现的还有根据阶梯电价计算电费、通过功率变化情况分析哪种电器开启了，预测第二天的电费、合理用电提醒等等。虽然指标只有两个有效的，但是想象的空间却是无限的。限制我们的应该只有时间成本和工具的熟悉和功能成本了。
+展现方面，由于一屏只能加限定的元素进来，因此限制了一些的发挥。例如：包括把每日电费做成基于时间日期的热力图，然后可以进行下钻。显而易见的看到每天（白天、夜晚）的最大功率最小功率的发生时刻和数值。结合地理位置比较碳排放。结合家里的户型图做功率展现等等。当然这不是homeassistant 的可观测性，无法做到深入场景的尽善尽美，达到一个“小满”的状态已经很不错了。
+关于展现可能还可以再说很多很多，比如是用纯数字展现还是仪表盘展现，折线图还需要哪些优化更好一些，甚至以前还跟同事讨论，为何监控都是黑色背景的（看起来酷 对于值夜班盯监控的人友好）等等。等有机会再说吧。</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts4/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts4/</guid><description>家庭电量可观测性（展望篇） 总结 说是展望，其实更像一个总结。跟很多获奖感言一样先是感谢篇（排名不分先后）。
+感谢 感谢瀚思彼岸论坛上2018年底的一篇[开关插座] 家庭总体能耗电压电流功率用电度数检测，进阶Grafana应用帖子，特别是其中的一句话
+前一段有个帖子里，说米家智能插座增强版可以看功率，我提到了只看一个插座的功率没太大意义，要看就看整个家庭的用电。说了一句：“家里整体功耗才是王道”引得网友回复
+让我从沉醉于米家智能插座看功率的兴奋中清醒过来，投入了难度系数更高的全屋电量监控。
+感谢在龙湖一群玩IoT的小伙伴的大力支持，他们对于硬件方面的知识确实让我看到了，搞IoT的各种不易，实际落地完完全玩不是PPT里的一句话的事情。牵涉到硬件就会有无数细节上的魔鬼等着你。
+感谢观测云让我把这个落灰3年多的可观测性又捡了起来，重新写了一篇洋洋洒洒的记录。还好当时写的程序和电路都还正常， 只花了一两个小时就重新再次上线了，大部分的时间其实花在了把已经打包好的iMac重新启动起来，找到当年自己写的程序的过程上。也多亏了观测云接入的便利性和免费白嫖的额度。可以让我用手机随时随地的看家里的用电情况和设置告警了。
+感谢媳妇在我各种停电的情况下，帮我举着螺丝刀手电筒跟我一起瞎搞。当时两个人还好，现在有了娃就不敢这么瞎玩了。或许等娃长大以后可以带着他一起玩。跟我小时候用电笔把家里的电搞短路一样。那个小伙子没有点童年呢。
+感谢我自己的这种爱好，让我锲而不舍的能把现在想想都望而却步的事情做到了一个“小满”的状态，虽然有很多需要改进的地方。但生命在于折腾这个事，估计会一直伴随着我，哪个男人没点自己的小嗜好呢。
+展望 好吧 说完感谢的话，就开始说展望吧。其实做全屋的智能是一直以来的梦想。讲个笑话：
+以前租房子的时候，我的床就在窗户旁边，窗外有很高的梧桐树，窗户下面是白俄罗斯大使馆的门口，非常安静。多次想如果每天早上叫醒我的如果是窗帘自动打开，透进来的光线该多好。然后去寻找电机，皮带等原材料。想自己做一个。从修车的堂弟那里搞到了汽车电动门的电机。去跟一个师弟探讨皮带传送的知识。然后最后的最后，买了一个10块钱的晾衣杆放到床边解决问题了。虽说解决不了通过光线自动叫我起床的目的，但是打开窗帘是足够了。
+这个故事告诉我们，智能家居还是搞成本的好，一些改造成本有时候不是我们这种普通人可以承受的。当然随着折腾能力的不断上升，这个应该不是什么问题了。但一开始还是建议大家买成品折腾比较好。
+说是对于这个“作品”的展望，不如说是对于之后的智能家居的展望。
+插座开关 大概是应该会把所有的插座和开关都接入只能解决。当然成本问题也是不容忽视的。特别是插座。可能会吧一些固定的功耗大插座比如空调，电冰箱等换成智能的。其它的还是使用传统的。开关方面已经开始变成智能的了。家里面积并不大，这个成本还是可以承受的。
+摄像头 家庭入户门和前后阳台需要有三个摄像头，这样快递放到门口就不用太担心什么了。南阳台的摄像头主要用来看楼下的停车场是否有空位，如果能加上AI就更好了。北阳台主要看进单元门的人员和家门口的配合使用。</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/proxmox-lxc/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/proxmox-lxc/</guid><description>proxmox-lxc 背景 方案 clone 原生 自己制作 Create lxc template with proxmox
+Step 1) Download the LXC/openVZ template Step 2) Create an LXC container with this template Step 3) Boot the container Step 4) Enter the container via console (pct enter &amp;lt;id&amp;gt;) Step 5) Install / modifY anything you want Step 6) Remove the network configuration from the network interface Step 7) Shutdown the container Step 8) Make a backup with vzdump and select tar.</description></item><item><title>通用信息模型</title><link>https://git.yimeng.ch/post/2021/dmtf-cim/</link><pubDate>Sun, 19 Sep 2021 09:23:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/dmtf-cim/</guid><description>关于 Dmtf DMTF（以前称为分布式管理任务组）创建开放可管理性标准，涵盖各种新兴和传统的 IT 基础架构，包括云、虚拟化、网络、服务器和存储。 全球成员公司和联盟合作伙伴在标准上进行合作，以改善信息技术的可互操作管理。
+DMTF 标准在 ANSI 和 ISO 的国家和国际认可下，通过可互操作的解决方案，能够采用更集成、更具成本效益的管理方法。 DMTF 能够同时开发开源和开放标准，它拥有高效开发和协作所需的支持、工具和基础架构。
+DMTF 是一个 501（c）（6） 标准组织，由 Broadcom Inc. 的多元化董事会领导; 思科;戴尔技术;惠普企业：英特尔公司;联想：网应用程序;波西蒂沃·特克诺洛吉亚和威瑞森
+最新标准
+CADF - 云审计数据联合会 CIMI - 云基础设施管理接口 CIM - 常见信息模型 DASH - 系统硬件的桌面和移动架构 MCTP - 管理组件运输协议 包括NVME-MI™、I2C/SMBus和PCIE®绑定 NC-SI - 网络控制器侧带接口 OVF - 开放虚拟化格式 PLDM - 平台级数据模型 包括固件更新、红鱼设备启用 （RDE） 红鱼® 包括协议、Schema、主机接口、配置文件 SMASH - 服务器硬件的系统管理架构 SMBIOS - 系统管理生物 SPDM - 安全协议和数据模型</description></item><item><title>基础设施既代码-读书笔记</title><link>https://git.yimeng.ch/post/2021/iac/</link><pubDate>Sat, 04 Sep 2021 12:10:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/iac/</guid><description>基础设施即代码-读书笔记 读书人自己的前言 其实k8s也是一种基础设施既代码的实现，其中很多理念IaC是相同的。只不过IaC中并没有调度。
+第一部分　基础 第1章　挑战与原则 1.1　为什么采用基础设施即代码 在云和自动化的时代还维持着传统IT的管理模式，比如创建机器，删除机器，扩容机器。云的一些特性并没有发挥出来，而且不关注一致性和可靠性，导致越管越乱。系统与硬件解耦后，可以更方便的定义基础设施环境。
+1.2　什么是基础设施即代码 基于软件开发实践的基础设施自动化的方法。具有一致性和可重复性。有自己的代码仓库、自动化测试、测试驱动开发、持续集成、持续交付。
+目标：
+IT基础设施允许变更，而不是成为阻碍 消除对基础设施变更的恐惧 IT人员不应该把时间精力花费重复的创建机器上 用户可以自定义自己的环境，不需要IT人员的参与 团队应该可以快速的恢复环境，而不是害怕环境变更影响业务 持续小批量的修改，而不是上线前的集中创建 不要在会议上讨论变更，而是应该去不断的测试生成的环境。 1.3　动态基础设施的挑战 1.3.1　服务器蔓延 创建机器太容易了，迅速的扩张。超过所能控制和管理的规模。
+1.3.2　配置漂移 同样的业务，跑着不同样的应用配置。随着时间增加 差异也不断的增加。
+1.3.3　雪花服务器 雪花服务器和其它机器配置不一样，且不能够被重新复制一套。
+1.3.4　脆弱的基础设施 谁都不敢碰那台雪花服务器。
+1.3.5　自动化恐惧症 使用配置管理工具，但不是自动化的使用。对自动化缺乏信心。
+1.3.6　侵蚀 操作系统升级和硬件损坏等异常条件，会打破并且侵蚀系统的一致性。
+1.4　基础设施即代码的原则 1.4.1　系统能够轻松复制 1.4.2　系统是用完可扔的 运行在不可靠的硬件资源上，应该按照牲口的管理方式去管理，而不是宠物的管理方式。
+1.4.3　系统是一致的 目录结构、各个组件的版本都应该是一致的。
+1.4.4　过程是可重复的 每个系统管理员应该使用相同的脚本去初始化机器，保持每次创建的机器的过程都是一致的。
+1.4.5　设计经常变更 1.5　实践 1.5.1　使用定义文件 使用DSL定义基础设施
+目前这种方式有改变的趋势，变为使用代码定义。DSL的方式不太灵活。
+1.5.2　自文档化的系统和流程 DSL语言就是文档
+1.5.3　一切版本化 可追述 回滚 相关性 可见性 可执行 1.</description></item><item><title>20210904流水账</title><link>https://git.yimeng.ch/post/2021/20210904/</link><pubDate>Sat, 04 Sep 2021 10:42:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/20210904/</guid><description>第一篇流水账 开始 溜达轨迹：
+技术设施即代码 技术雷达 thoughtworks 基于开源工具的人生管理 https://insights.thoughtworks.cn/life-management-based-on-open-source/ Logseq 制定个人ORK 技术雷达 backstage 构建基础设施平台 网页时光机 https://archive.org/web/ GTD 为什么一般人坚持不下来 https://www.zhihu.com/question/24287111/answer/30106040 画技术图时的配色 https://coolors.co/palettes/trending 技术文章配图指南 https://draveness.me/sketch-and-sketch/ 找到最重要的事 https://mp.weixin.qq.com/s/1T8r7HIX8NAQqUowFOV0rg 个人OKR OKR + GTD + Note =&amp;gt; Logseq 中文文案排版指北 Spotify模型：什么是面向运维基础设施的开发者门户Backstage？ - redmonk Spotify开放了Cost Cost Insights开源项目 现代企业架构白皮书-数字化转型底层方法论 Go 语言设计与实现 11:04 我在干嘛？不是要看基础设施既代码的方面的吗，为啥走了这么远？看来以后要先列大纲了。不过应该也没有太白费，好歹可以制定下自己的OKR，虽说没有企业里面的使命愿景战略那么高大上，但也好歹有个思路了。
+往上关注运维领域的发展方向，往下积累各种客户的运维需求。
+往上写写系列的文章，例如基础设施即代码系列
+往下写写各种妖魔鬼怪的甲方的各种需求以及友商的各种产品
+第一步先把基础设施即代码这个坑填上，偶尔穿插下接地气的客户需求。下面定几个K吧
+基础设施即代码 读书笔记 研究下技术雷达里的基础设施即代码的内容（小心走偏） YouTube上关于IaC的内容看看 写一下自己基于Homelab的IaC的实践 做几期分享？</description></item><item><title>pulumi-quickstart</title><link>https://git.yimeng.ch/post/2021/pulumi-quickstart/</link><pubDate>Sat, 04 Sep 2021 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/pulumi-quickstart/</guid><description>背景 基础设施即代码的当红小生，大有把大哥terraform比下去的趋势。有评价说terraform是配置文件即代码，而pulumi才是真正的基础设施既代码。说白了就是terraform被人诟病的HCL语言过于“刻板”，甚至有点当年puppet那有一定入门门槛的语言一样。所以喜欢自由的devops们都对于pulumi的门下，甚至thoughtworks技术雷达里在2021年10月将等级从评估提到了实验级别。 所以借着研究基础设施既代码的机会，研究下这位当红小生吧。
+结论 把结论放到这里各位可以各取所需，不太适合的就可以不看下面的详细过程了
+小众Provider需要时间和经历尝试，如果只是像proxmox这样自己玩玩homelab的，平时创建个机器啥的。ansible和terraform都可以满足你的需要。不一定非要用pulumi。 尽量用python，调试资料啥的都好找一些。尝试了下golang，有点小放弃。主要是用的人不太多。而且编译成一个文件执行的机会可能也不大。大多数时候还是shell+bin。当然这个依据你的技术栈而定。 可以用用它的k8s模块，目前还没有尝试。不过k8s的yml确实跟terraform puppet这些前辈们有一拼。不知道这个效果如何。 最后总结下：如果terraform能满足你的需要，用着吧。如果有一些实在不能满足需要的，再来看看pulumi。或许有惊喜。 过程 阿里云 环境准备 export ALICLOUD_ACCESS_KEY=xxxxx export ALICLOUD_SECRET_KEY=xxxxxx mkdir quickstart &amp;amp;&amp;amp; cd quickstart pulumi new python --force source venv/bin/activate main.py &amp;#34;&amp;#34;&amp;#34;A Python Pulumi program&amp;#34;&amp;#34;&amp;#34; import pulumi import pulumi_alicloud as alicloud vpc = alicloud.vpc.Network(&amp;#34;my-vpc&amp;#34;,cidr_block=&amp;#34;172.16.0.0/12&amp;#34;) az = &amp;#34;cn-beijing-c&amp;#34; sg = alicloud.ecs.SecurityGroup(&amp;#34;pulumi_sg&amp;#34;,description=&amp;#34;pulumi security_groups&amp;#34;,vpc_id=vpc.id) vswitch = alicloud.vpc.Switch(&amp;#34;pulumi_vswitch&amp;#34;,zone_id=az,cidr_block=&amp;#34;172.16.0.0/21&amp;#34;,vpc_id=vpc.id) sg_ids= [sg.id] sg_rule= alicloud.ecs.SecurityGroupRule(&amp;#34;sg_rule&amp;#34;,security_group_id=sg.id,ip_protocol = &amp;#34;tcp&amp;#34;, type= &amp;#34;ingress&amp;#34;,nic_type = &amp;#34;intranet&amp;#34;,port_range=&amp;#34;22/22&amp;#34;,cidr_ip=&amp;#34;0.0.0.0/0&amp;#34;) instance=alicloud.ecs.Instance(&amp;#34;ecs-instance2&amp;#34;,availability_zone=az,instance_type =&amp;#34;ecs.t5-lc2m1.nano&amp;#34; , security_groups =sg_ids,image_id=&amp;#34;ubuntu_18_04_64_20G_alibase_20190624.vhd&amp;#34;,instance_name =&amp;#34;ecsCreatedByPulumi2&amp;#34;,vswitch_id=vswitch.id,internet_max_bandwidth_out = 10) proxmox 环境准备 git clone https://github.</description></item><item><title>基础设施即代码-cloud-init</title><link>https://git.yimeng.ch/post/2021/cloud-init/</link><pubDate>Sat, 04 Sep 2021 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/cloud-init/</guid><description>基础设施即代码-cloud-init 第一次接触这个东西应该是在2012年，在创建aws的ec2上的时候，需要注入主机名。当时aws给了一个输入框，可以往里写一些“变量”。在启动的时候就可以按照规定好的变量进行设置。而且还能通过一个URL访问这些变量。这可能就是一开始的cloud-init
+从下面的图可以看出来 cloud-init除了images(iso)之外，还需要三个数据
+user-data vendor-data meta-data 作为支撑。其中最主要的应该就是user-data了。
+用户数据 user-data 这部分是cloud-init的最主要的数据源，这个阶段白皮书建议做下面的一些事情。但有些事情详见一开始的说明。技术上可以做但是用于第一次启动会不太适合。
+设置主机名 增加公钥 增加用户 磁盘挂载分区 更新软件包 配置LXD或者docker 运行测试代码 执行配置管理（ansible puppet chef） 扩容根分区 设置时区 更新软件源地址 文件要满足相关的 文件格式 ，相关实例可以参考 文件示例 。使用过程中可以使用一些已经写好的模块进行配置。
+同时，还支持一些事件的调用。比如第一次运行的时候，之后每次启动的时候，都可以根据启动的状态进行模块的调用。
+但事件的调用目前用的应该不多，而且功能也还待完善。
+vendor-data 这部分的数据一般来自于云平台自身，跟user-data数据类似。如果使用了user-data数据 这部分可能就不太需要了。例如如果在aws启动实例的控制台上定义了user-data，估计这部分就不生效了。主要用来设置ntp和软件更新源。这部分数据官方文档放到了实例数据中。但是ubuntu的cloud-init白皮书放到了实例数据中，应该属于一个中间地带。并且官方文档也说，建议云厂商不要滥用这个文件。防止给用户带来不必要的困扰，虽然，user-data大于vendor-data，想必这么设计也是有这层意思吧。
+实例数据 meta-data 这部分就是云实例提供的了。一般来说就是我们可以使用curl来获取的那些信息。会在本机生成一个实例数据的一个文件，可以在这个文件中找到一些非常有用的信息，比如IP地址等。cloud-init在执行的时候就会把一些相关的信息写入这个文件。这个倒是可以结合CMDB或者配置管理的一些数据库进行联合。例如把维护人的username email写入这个文件中。详细的说明可以参考下 官方元数据的说明
+最佳实践 这个东西应该是在通过PXE/Packer打包好了镜像之后（也安装了cloud-init）使用的。但有个悖论就是：cloud-init里面有一些软件包的安装过程，这个跟PXE/Packer里面的软件包安装甚至cloud-init后续的ansible/puppet过程的软件包安装可能会有冲突。所以软件包安装这个行为需要谨慎的进行考虑其各个阶段的作用。那么cloud-init在其生命周期里，主要可以用来做什么呢？个人感觉如下几个功能可以供参考：
+主机名的初始化 用户初始化 公钥的注入 一些通过镜像基线没有搞定的事情弥补下 分区挂载（如果有运维标准的话可以做） 这个阶段已经开始有IP地址了，准备让应用运维上来初始化他们自己的机器了，基础软件在PXE还有一些小问题的，需要通过这个阶段弥补下。
+不适合做的事情：
+应用软件的安装（交给应用运维用puppet或者ansible 安装会占用过多的时间 影响交付） 跟PE(应用运维)业务有关的事情（增加各个PE的账户，实际上是SA交给PE的最后一步。具体PE分配和使用交给PE去规划） 说白了 cloud-init是用于SA的最后一步的添补，弥补在打镜像或者terraform的时候的一些缺陷，但似乎跟terraform有一些小冲突。这里可以认为terraform是用于个性化的启动，是一个SA的主动改变的行为。而cloud-init是用于通用化的启动，基本上不太会更改里面的内容，即使修改，可能也在一些可变的URL里进行修改。
+本篇并没有对cloud-init的技术做过多的介绍，多半还是功能和定位的一个介绍。并且根据自己的思考把一些适用场景进行了描述。因为技术很容易就更新。但产品的定位和功能基因大体不太会变。甚至有些产品到了最后被收购的情况下也不太会改变了。比如puppet。
+cloud-init白皮书
+TH9REX-4QBDS3-5ADB8U-M5YE4V
+pulumi
+quickstart
+export ALICLOUD_ACCESS_KEY=xxxxx export ALICLOUD_SECRET_KEY=xxxxxx mkdir quickstart &amp;amp;&amp;amp; cd quickstart pulumi new python --force source venv/bin/activate main.</description></item><item><title>基础设施即代码-PXE</title><link>https://git.yimeng.ch/post/2021/pxe/</link><pubDate>Mon, 30 Aug 2021 23:22:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/pxe/</guid><description>基础设施即代码-PXE 自从上次搞定了homelab机器之后，就开始基础设施即代码的第一步了 PXE启动。
+也许你要问了，现在云这么方便PXE这玩意还用得上吗？话说还真是这样，目前大多数时候我们已经用不上这个古老的技术了。在很久以前无盘工作站或者虚拟化的时候，这玩意还是很吃香的。不过这并不影响我们作为一个技术去了解它。而且，现在的一些云厂商或者需要做烧制镜像之前，用PXE还是可以能省不少事的。况且还可以在没有U盘的时候安装系统，何乐不为？（别问我怎么知道的，机器到了之后我就经历了到处借U盘装系统的窘境）
+前面介绍完了，下面开始介绍这个古老的技术吧：
+PXE 先来一段维基百科上的介绍
+预启动执行环境（Preboot eXecution Environment，PXE，也被称为预执行环境）提供了一种使用网络接口（Network Interface）启动计算机的机制。这种机制让计算机的启动可以不依赖本地数据存储设备（如硬盘）或本地已安装的操作系统。
+PXE当初是作为Intel的有线管理体系的一部分，Intel 和 Systemsoft于1999年9月20日公布其规格(版本2.1)[1]。通过使用像网际协议（IP）、用户数据报协议（UDP）、动态主机设定协定（DHCP）、BOOTP、小型文件传输协议（TFTP）等几种网络协议和全局唯一标识符（GUID）、通用网络驱动接口（UNDI）、通用唯一识别码（UUID）的概念并通过对客户机（通过PXE自检的电脑）固件扩展预设的API来实现目的。
+这里可以看出来，这玩意涉及的技术主要有如下两个：
+DHCP（IP） TFTP（UDP 69） 相关的流程借用下往上的图片
+主机对DHCP服务器说，给我一个IP地址，并且给我一个TFTP地址（RFC5859 Option Codes 128-223）。 主机用TFTP协议去主机上下载启动所需的引导文件pxelinux.0和配置文件pxelinux.cfg/default（rfc5071 Option Codes 209-211）。这个文件的引导顺序参见这里 从pxelinux.cfg/default文件中把kennel文件vmlinuz，initrd.img下载回来进行引导。 再向DHCP为linux内核请求一个IP地址。 使用第二次请求的IP地址，将ks.cfg下载下来进行自动化安装。 可选：将需要安装的操作系统通过http的方式将ks文件和iso文件放到某目录下，这个就是default文件之后的事情了。这玩意其实就是个GRUB 。这里牵涉到了另外几个知识点。一会详细介绍，先把pxelinux.cfg/default的配置放出来。 #cat pxelinux.cfg/default default vesamenu.c32 prompt 0 timeout 3 ONTIMEOUT CentOS 7 LABEL CentOS 7 MENU LABEL CentOS 123 KERNEL vmlinuz #APPEND ks initrd=initrd.img ramdisk_size=100000 ksdevice=eth1 ip=dhcp url --url http://192.168.33.11/ append initrd=initrd.img ks=tftp://xxx.xxx.xxx.xxx/anaconda-ks.cfg 好了 下面开始说一下关于引导的知识点了
+有关引导 关于引导维基百科里有一个专业的对比
+不过在这之前先说一下BIOS和UEFI的区别和对比吧
+当然也少不了MBR和GPT的对比</description></item><item><title>homelab再出发</title><link>https://git.yimeng.ch/post/2021/homelab/</link><pubDate>Thu, 19 Aug 2021 22:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/homelab/</guid><description>背景 以前配的一台homelab主机已经很多年了，配置如下：
+CPU：Intel(R) Xeon(R) CPU E3-1235L v5 @ 2.00GHz Cores: 4 Threads: 4 TDP: 25 W Turbo Speed: 3.0 GHz (cpubenchmark:5013)
+内存：玖合(JUHOR) 16GB DDR4 2400 *3
+主板：Asus/华硕 P10S WS工作站主板C236芯片支持E3-v5 v6系列双M.2接口
+硬盘：
+**惠普（HP）SSD固态硬盘 M.2接口(NVMe协议) EX920： 256G ** 海康威视：C2000pro M.2 : 2T 西部数据：4T+2T+4T+1T+4T=15T 因为几次停电，西部数据的机械硬盘怕受不了太多的刺激，加上有些数据都是比较重要的。所以打算把这台ATX大小的机器作为存储。反正磁盘位还有4-5个，还有两个光驱位可以补充，但不太会在上面折腾了，平时用的时候再开。所以新的需求就来了。如果上天再给我一次选择的机会，我会如何配置呢？
+当然，新电脑的需求还是取决于钱包里的兜子大小。一开始预算大概只有2-3k。然而，买东西这种事情，你懂的，跟买车一样，一开始我只想买个自行车，谁知道最后买了一个劳斯莱斯幻影。
+虽然做了很充分的调研，然而最终可能还是买了一个总价5K的，并且最终商家发货之前还在犹豫是A还是B更好一些的问题。可见这个时代装机也是一件很纠结的事情。为了惊醒后人，纠结再三，还是把这次纠结的过程写下来比较好。
+需求 根据背景里介绍的那样，这次主要是为了平时做一些实验而买的（和老婆申请的理由）。所以根据现状分布式以及计算和存储分开的原则。本次购买的原则如下：
+体积要小（容易折腾,房子小折腾大家伙可以扔天津地下室） 性能要好一些（平时需求量不大，但希望能多开点虚拟机做实验） 内存要大（方便开虚拟机） 网口最好要多一些（方便做SDN实验） 要便宜（可以多买几个做分布式实验） 存储和计算分离（鱼和熊掌不可兼得） 甚至还在v2ex上发了一个求助帖，链接在本文的最下方，各位看官看完本文可以去瞻仰下。并且通过搜索reddit上的homelab板块，以及chiphell以及YouTube B站上一些信息，甚至跟咸鱼的老板们也聊了不少。最终总结出来以下几个流派（排名不分先后）：
+NUC流派 笔记本流派 垃圾佬流派 其它流派 以下就把相关流派的背景和研究历史跟大家一一道来。
+NUC流派 前言 就好像微软教育超极本厂商一样，Intel除了挤牙膏，也在教各位PC厂商，办公小电脑应该这么做一样。牙膏厂除了挤牙膏，在NUC这个系列上还是很成功的（打脸时间：大多数被大家用来做黑苹果用了）。
+这其中比较火的就是NUC8 和 新出的NUC10了，其中NUC8 i5-beh这个系列性价比最高（多亏了牙膏挤的慢），再加上可以搞黑苹果的加成，咸鱼上的价格在2K左右（涨价后）。这2K你能买到什么呢？一个Intel® Core™ i5-8259U Processor (4C / 8T, 2.</description></item><item><title>homelab再出发</title><link>https://git.yimeng.ch/post/2021/homelab2021/</link><pubDate>Thu, 19 Aug 2021 22:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/homelab2021/</guid><description>背景 自从家里的homelab换了一次内存之后就再也没有打开的欲望了，原因是太大了。折腾起来经常要爬上高出去接键盘和显示器。调试起来及其麻烦。尤其是夏天一身汗，调试硬件需要把一个大机箱搬上搬下及其不方便。加上里面的硬盘数据日益多了起来。而且有一些重要资料。再混在一起怕哪天都崩了。鸡蛋不能放到一个篮子里。
+笔记本：5800U 有将近2w的跑分 是NUC11+1135G7 和联想m720q+ 8700T的两倍。但！扩展性稍差 只有一个网口 ，不能扩展PCIE和硬盘。平时不跑编译，应该用不到那么好的CPU，裸机价格5K。
+NUC：NUC8可以装黑苹果，单网口做计算节点没啥毛病。就是电源太大（可以用替代） 。NUC11的双网卡版本基本买不到，CPU性能1w左右 跟垃圾佬的 8700T差不多 。NUC6可以改双网卡但CPU太弱。裸机 2K-3K
+垃圾佬：
+M720q：可以装四网卡 CPU也不弱 价格 裸机1K。如果想再好好玩玩 可以看看m910x，双M2扩展，。 930x,量比较少，适配挡板比较难。 裸机+CPU 2K
+综上好像也就垃圾佬方案了。最总应该是 M920x 准系统 1200+CPU 980+2000 64G内存 +1K 1T SSD 总价下来 5.2K
+二手笔记本：
+联想T540P
+i7 4870hq（6365） 4c8t 16G 256G 500G 1999￥
+需求 体积要小（容易折腾,房子小折腾大家伙可以扔天津地下室）
+性能要差不多（平时需求量不大，但希望能多开点虚拟机做实验）
+内存要大（方便开虚拟机）
+网口最好要多一些（方便做SDN实验）
+要便宜（可以多买几个做分布式实验）
+存储和计算分离（鱼和熊掌不可兼得）
+选型 笔记本方案（7K左右） 设备型号：ThinkPad L14
+处理器：AMD Ryzen 7 PRO 4750U (8C / 16T, 1.7 / 4.1GHz, 4MB L2 / 8MB L3) / 15W TDP</description></item><item><title>懒人搭建k8s</title><link>https://git.yimeng.ch/post/2021/one-k8s/</link><pubDate>Thu, 19 Aug 2021 14:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/one-k8s/</guid><description>背景 时间已经来到了2021年，手工搭建k8s再也不是什么值得炫耀的事情。加上学习成本很高，大家都开始了一键搭建k8s，学习如何转化为生产力的节奏。总结下截止到2021年8月世面上的k8s一键搭建方案和相关平台
+google自己家 minikube 很适合建立一个实验环境，Mac上也是用虚拟机给你搞，有mac版本。 kubeadm 目前已经生产ready，除了需要改改仓库地址。其它的还算比较方便。直接上Linux折腾吧，Mac上好像不行。 kops Kubespray 第三方 ubuntu microk8s 管理平台： rancher kubesphere openshift</description></item><item><title>阿里云k8s最佳实践</title><link>https://git.yimeng.ch/post/2021/aliyun-k8s/</link><pubDate>Fri, 19 Feb 2021 14:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/aliyun-k8s/</guid><description>阿里云k8s 规划手册 K8S限制 在 v1.19 版本中， Kubernetes 支持的最大节点数为 5000。更具体地说，我们支持满足以下所有条件的配置：
+节点数不超过 5000 Pod 总数不超过 150000 容器总数不超过 300000 每个节点的 pod 数量不超过 100 选型步骤 阿里云K8S分类 网络规划 ECS选型 网络选型 配置设置 阿里云k8s分类 ![image-20201124121734196](/Users/yimeng/Library/Application Support/typora-user-images/image-20201124121734196.png)
+生产环境 Dedicated K8S 自主可控
+测试环境：Managed K8S 节省成本
+持续集成 、Job任务：K8S Serverless
+网络规划 VPC K8S使用独立的VPC，不建议混用。如混用需要重新规划 单个VPC支持云资源使用的私网网络地址数量 60,000 VPC建议使用 16掩码：/16 65532 建议k8s独立的VPC，通过云企业网等打通。 单个地域支持创建的VPC的数量 10个 北京9个可用区 共计 90个VPC 交换机 交换机网段建议使用20(4094)-21(2046)掩码（为了最大利用IP地址，虚拟机一般用24掩码即可） 单个VPC支持创建的交换机的数量 24个(阿里云限制) 每个交换机平均掩码长度/20-/21 可用IP数 2044-4092 * 24 ~ 49056 &amp;lt; 65532 &amp;lt; 98208 service 数量 1.</description></item><item><title>Grafana最佳实践</title><link>https://git.yimeng.ch/post/2020/grafana-as-code/</link><pubDate>Sat, 31 Oct 2020 09:25:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/grafana-as-code/</guid><description>grafana最佳实践 前言 上次说到，后面会针对Grafana，使用对于监控指标的可视化方面做个大致的介绍。大致内容有
+Grafana最佳实践 Grafana as Code 为什么要讲的是这两点？
+前一阵子在做基础监控的项目，既然做监控就离不开展示，做展示大屏又离不开Grafana。做Grafana就想了解下知道最佳实践，最佳实践里有一条Grafana as Code。结合这个路子，正好在这里说几个做监控时的两个小感悟。
+开源产品的展示页基本都比较丑：由奢入俭难，大部分的开源软件的自带dashboard基本上只是可用的级别。 开发都比较懒，运维也比较懒：如果你是做监控工具的，可以的话就帮开发运维把一些通用的dashboard都做好吧，一穷二白的指望他们自己做不太现实，大家都很忙。不管是出人搞定制化，还是用技术的手段。做工具的服务意识要有。 基于以上的两点，在SRE时代，关于大屏有三个点可能要了解和掌握：
+了解监控指标分类体系，知道在Grafana上如何展示更直观和合理。 使用代码的方式批量去实现1。 做好培训和布道，帮助开发和运维去更好的使用，回到1。 The RED Method: How To Instrument Your Services [B] - Tom Wilkie, Kausal
+https://grafana.com/files/grafanacon_eu_2018/Tom_Wilkie_GrafanaCon_EU_2018.pdf
+将Prometheus，Grafana，RED和USE指标放在一起以改善监控
+[一个用于生成Grafana仪表板的Jsonnet库](https://github.com/grafana/grafonnet-lib)
+Tanka
+网站性能优化
+A beginner’s guide to good Grafana dashboard design
+监控指标分类体系 监控指标体系目前有三种主要的分类方式：
+​	USE Method (from Brendan Gregg): Utilization, Saturation, and Errors
+​	RED Method (from Tom Wilkie): Rate, Errors, and Duration
+​	Google SRE book: Latency, Traffic, Errors, and Saturation</description></item><item><title>监控最佳实践-指标篇</title><link>https://git.yimeng.ch/post/2020/monitor-metric/</link><pubDate>Sun, 18 Oct 2020 12:43:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/monitor-metric/</guid><description>监控最佳实践-指标篇 监控指标分类体系 监控指标体系目前有三种主要的分类方式：
+​	USE Method (from Brendan Gregg): Utilization, Saturation, and Errors
+​	RED Method (from Tom Wilkie): Rate, Errors, and Duration
+​	Google SRE book: Latency, Traffic, Errors, and Saturation
+USE方法 利用率（Utilization）：资源繁忙的时间百分比，例如节点CPU使用率。 饱和度（Saturation）：资源必须完成的工作量，通常是队列长度或节点负载。 错误（Errors）：错误事件计数。 主要适用场景：
+基础结构中的硬件资源，例如CPU，内存和网络设备。
+RED方法 速率：每秒请求，每天访问人数等。 错误：失败的请求数， 持续时间：这些请求花费的时间，延迟测量的分布 主要适用场景：
+这种方法比较适用于服务级别，尤其是微服务。对于研发提供的服务，建议每个组件的服务都暴露一些这样的指标。因为RED 的方法比较适合做成看板和统计SLO。在grafana最佳实践中：建议一个服务做成一行，横向放置某一接口的速率和错误和持续时间。
+SRE黄金指标 此方法与RED方法相似，但包含饱和度。
+延迟（Latency）：处理请求所需的时间 流量（Traffic）：系统上有多少请求 错误（Errors）：失败请求率 饱和度（Saturation）：系统有多“满”，例如负载和队列积压。 主要适用场景：
+属于较为通用的场景（合集），基本上是个筐，什么都可以往里装。
+这里可以说一下Latency里面有一个重要的概念就是Apdex（Application Performance Index）这是一个从APM角度评价性能的标准，主要用于评价用户体验的。比如打开一个服务用的总延迟是多少，根据这个延迟进行一个评分，最后落到0-1之间。
+指标分类对比 方法没有好坏之分，比如比较以下从USE和SRE的两个角度来对于基础设施监控的维度，其实都是可以的，只要适合自己的系统情况即可。
+USE方法是我自己从经验角度来进行的归类。
+SRE方法是来自https://www.jianshu.com/p/b01bc69fcc3b 的内容。
+但更推荐看https://medium.com/@steve.mushero/linuxs-sre-golden-signals-af5aaa26ebae 里关于系统监控项的内容。
+USE方法 CPU 利用率（Utilization）：CPU使用率。 饱和度（Saturation）：CPU负载。 错误（Errors）：CPU错误 内存 利用率（Utilization）：内存使用率。 饱和度（Saturation）：内存换入换出。 错误（Errors）：内存错误 OOM 磁盘 利用率（Utilization）：磁盘使用率 inode使用率。 饱和度（Saturation）：IO读写流量。 错误（Errors）：IO 网络 利用率（Utilization）：流量 收发包数 。 饱和度（Saturation）：网卡带宽使用率。 错误（Errors）：网络设备错误，丢包 TCP 利用率（Utilization）：单个TCP收发包大小？。 饱和度（Saturation）：TCP状态连接数。 错误（Errors）：中断？ SRE黄金指标 要测量CPU，以下测量可能是合适的：</description></item><item><title>一年前的出租窝，一年后的疫情</title><link>https://git.yimeng.ch/post/2020/covid-19/</link><pubDate>Sat, 19 Sep 2020 12:28:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/covid-19/</guid><description>前言 距离上一次更新已经是一年前了，过年的时候因为疫情。也没有进行一年的总结。还好，这一年其实也没做什么。倒是送走了一位亲人。但2019的好多事情已经想不起来了，2020的记忆多半是在家。也不知道该写啥了。就当再一次的胡言乱语吧。
+这是哪 从博客中国，到bo-blog，到WordPress。用过很多博客，一直到现在还有一个独立托管的WordPress在linnode上。估计也长草了好久了。都是一些以前记录心情的文章。这里应该以后应该还是以技术文章多一些，一年有个年终生活总结。至于平时有些生活的碎碎念，抽个时间把WordPress转移到hugo，然后建立个私人仓库保存吧。
+目标 希望能否一周到两周能有一篇文章，很久以前参加过一个抓虾还是那个RSS聚合网站的活动，每周写一篇博客。当时深知这是一件很难的事情。不过都这个岁数了，应该坚持有点自制力了。希望能够坚持下来。
+下一篇 最近做的监控和CMDB，运维产品原型较多。可能从产品方向做一些分享和总结。
+Todo 需要用github的CI工具把这里做成自动CI/CD的，blog代码化。</description></item><item><title>家用DNS选择</title><link>https://git.yimeng.ch/post/2019/homedns/</link><pubDate>Thu, 19 Sep 2019 22:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/homedns/</guid><description>家用DNS选择 背景 折腾了下家里的路由器之后，发现DHCP分配的IP地址都乱了，以前用IP的一些服务无法运行。
+用MAC绑定倒是可以解决这个问题，但是随之还是需要一个小的CMDB去存储这些信息，维护量还是存在。
+于是就想找一个轻量级的DNS服务端来解决内网DNS的问题。
+需求 必选 支持restful api的注册发现
+轻量级
+依赖少
+迁移方便
+文档丰富
+学习成本低，知识复用
+可选 最好有web页面进行管理
+高可用无所谓
+选型 Bind：比较熟悉了，但是太重，放弃。
+PowerDNS：网上口碑不错，大多数人的选择，但是还是需要了解一些命令行和配置。还是有一定的学习成本的。而且无法迁移到生产上，知识投入产出比较低，感觉只是Bind的改进版。放弃。
+CoreDNS：K8s组件之一，有学习成本但是可以移植到k8s上。有etcd服务发现的加持，二进制+配置文件，迁移和部署比较简单。
+DNSmasq：路由器友好支持，和DHCP在一起。但是缺少服务发现和管理界面，不时之需的时候备选。或者路由器DNSmasq+CoreDNS的组合也是不错的。CoreDNS坏了用DNSmasq接管。
+consul：天生就是服务发现的工具，也自带dns。就是不能递归。不过对于我来说足够用了。
+架构 本地server：CoreDNS+ETCD 配置放到git上作为备份
+本地client：DNSmasq缓存dns查询 转发的coredns上
+路由器DNSmasq负责dhcp</description></item><item><title>数据架构读书笔记</title><link>https://git.yimeng.ch/post/2019/data-architecture/</link><pubDate>Mon, 19 Aug 2019 22:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/data-architecture/</guid><description>数据架构读书笔记 背景 因工作上有需要，用一下午的时间翻看了下数据架构这本书。发现和运维的CMDB、监控等方面其实有很多共通之处，只不过运维是具体的场景。而这本书是从诸多业务场景中抽象出来的统一方法论。这里根据运维场景简单写一些个人的读书笔记。
+第一章：企业数据 企业数据 结构数据 非结构数据（大数据） 重复数据 非重复数据 业务相关性 业务相关 潜在相关 业务不相关 大数据：重复和非重复的非结构数据 分界线：大数据领域中，前者适用于Hadoop，后者适用于用文本分析，有明显的分界线。 从这个图可以看出来ElasticSearch应该属于非结构化中的非重复型数据。
+但如果将这种数据变成了重复性、结构化的数据，那么应该放到哪里呢？
+运维中经常会将日志结构化之后，将大量重复的数据存放到ES中，最后进行监控统计分析。
+这种情况会不会有一个更好的位置更加适合监控统计分析的场景呢？总结了监控中的三种数据所存在的位置：
+1 短期实时数据 ES，用于故障排查、定期巡检等。
+2 长期重复性数据入Hadoop，用于报表分析，容量规划等。
+3 辅助时序性数据库（结构化），进行大屏展示、业务归集等。
+企业数据统计图 业务相关 潜在业务相关 业务不相关 企业数据分析 数据的最终目的是为了分析，分析分两种类型：
+正式分析：审计、财务报表等用途 数据准确性高 非正式分析：准确性要求不高 步骤：
+一 确认数据来源：
+数据：结构化 非结构数据文本 物理介质：纸张 非数据：语音，二进制 数据消解比较困难，需要进行数据集成，进行相关规范化。
+数据的生命周期 生命周期1：进入——&amp;gt;捕获——&amp;gt;组织——&amp;gt;存储。
+生命周期2：集成——&amp;gt;使用——&amp;gt;归档——&amp;gt;丢弃。
+有用性递减曲线
+详细数据&amp;amp;汇总数据有用性递减曲线
+数据积累曲线
+第二章：大数据 大数据是什么 数量大
+廉价存储
+罗马人口统计
+非结构化格式（非DBMS）
+重复型数据&amp;amp;非重复数据 重复型：经常出现同一数值的数据
+非重复：不经常出现同一数据的数据
+重复型数据占90% 价值只有10%
+非重复型数据占10% 价值却又90%
+并行处理 并行化并不是随着节点数线性增加
+并行化两种形式：1 罗马人口统计 2 大规模并行处理MPP（统一索引）
+非结构化数据 98%的决策是通过结构化做出的，但非结构化非重复型数据往往也有很大的业务价值。例如：</description></item><item><title>出租窝装修记</title><link>https://git.yimeng.ch/post/2019/hugo/</link><pubDate>Sun, 18 Aug 2019 15:34:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/hugo/</guid><description>出租窝装修记 背景 刚来北京的时候把自己的博客定义成出租窝，想想和那时候的情景还是很贴合的。现实中有了自己的固定的窝了，但网上的这个窝确荒废了很久了。特别是技术的这个屋子，好久没有收拾了。
+平时搜索技术文章的时候，还是能看到一些有毅力的人把自己平时的点点滴滴整理成文章，而自己每年都想重拾的出租窝。一直也没有时间和精力搞，这次的突发事件才发现，如果再不整理的话，就可能什么也没留下。
+还记得10多年前一个feed聚合网站搞的一个比赛，每个星期都要写一篇命题博客，真的好痛苦。但是坚持下来又可以收获很多。这么多的益处还是多写写吧。
+既然重拾，先定几个大原则：
+更新频率：每周更新一篇； 遇到一天没搞定纠结的选择就先选一个； 初期内容为主、表现为辅； 逐步迭代； 总体还是出租窝的title，分为生活屋和技术屋，本次折腾的为技术屋。
+技术选型 生活屋依旧用WordPress，技术屋转移到github上，为了保险有空的话会在国内也做个镜像。
+github上有三个大的阵营：
+jekyll hexo hugo 网上有很多比较 一开始用jekyll 后来用hexo 如今用hugo，理由如下：
+一开始生成静态的初期好像只有jekyll，当时hexo还没有太成熟，就选择了jekyll。 后来大家说hexo还可以了，模板还多，比jekyll先进，加上自己并没有几个文章，迁移成本低，就到了hexo。 本以为可以能多写一篇文章了，没想到写了5+文章后就再也没有了下文。 等又反应过来之后，大家开始高举在微服务、k8s上golang的hugo了，而且hexo的生成速度被大家诟病。好吧开始折腾hugo 真是人算不如天算，技术的更新从ruby nodejs 再到golang 还是那句话，工具其实不重要，重要的是内容。虽然工具可能有这样或那样的不适合。但现实情况是有时候还没到不改工具就无法进行下去的节奏。但是，既然大势所趋，迁移成本还是不那么高，那就转成hugo吧。
+搜索了下相关文章，这两年在这方面还是有很多变化的：
+生成上：写blog也开始用上CI/CD了。 评论上：多说没了 disqus依旧 而github的issues也可以变成评论。 图片上：有一些在线压缩的工具可以继承到CI中，七牛云 微博图床这些不知道是否还好。 CDN上：七牛云好像也变了很多、其它云的对象存储+CDN好像大家也开始有所涉及。 主题上：好像大家对于主题没有了以前的热情，唠的涝死旱的旱死，两极分化。 其它：唯一不变的还是用git管理markdown写的文章。 Git 基础操作这里就略过不讲了三部曲
+git add git commit git push 重点讲一下下面两项
+Git LFS 无论是github还是gitlab目前比较新的版本都支持了LFS，当然也需要git的客户端的版本在1.8.5+
+这样在上传一些图片或者二进制包的时候不至于记录到git的历史记录里，防止git仓库过大。
+git lfs也是三部曲:
+git lfs install git lfs track &amp;ldquo;*.png&amp;rdquo; git add .gitattributes Git remote 说实话，这个还没有用上。原打算在本地生成之后一个push，然后推送到github和coding上的。
+不过用了CI，只能在CI的过程中生成好静态页，再推送到两个Git仓库中。还可能牵涉到配置文件域名的修改。尚未实践。
+CI 在DevOps当道的今天，个人博客也不例外。其实本意应该是减少以前hexo的缓慢编译，以及减少击键次数。目前网上的教程大多是用travis做的，目前github自家的CI也出来了，可以尝试。</description></item><item><title>家用功率监控</title><link>https://git.yimeng.ch/post/2019/ammeter/</link><pubDate>Sun, 11 Aug 2019 17:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/ammeter/</guid><description>智能家居-家用功率监控 智能家居-总功率监控
+背景 研究homelab机器的时候，忘记在哪个论坛里看到一个人的回复：家里整体功耗才是王道
+然后就开始了如下的折腾之路，后来就找不到相关的帖子了，自己摸索之后。帖子又奇迹的出现了，正好也找一些资料供大家参考。我这个最终版可能少了一些自己DIY的过程，多半部分在于应用层。硬件和modbus协议部分自己搞了一周也没搞定，后来感谢有个IoT的同事帮忙，一晚上就搞定了。
+架构 软件架构 监控展现： 因为是运维背景，很容易就想到了平时做的监控系统: nagios历史比较长了，而且数据不是时序数据库，需要集成的东西较多，就没选。 看了一圈综合起来采集数据监控层还是prometheus比较适合，自带时序数据库，部署方便。展现层grafana易集成。 时序数据库就用prometheus自带的吧。懒的折腾influxdb了。
+数据采集： prometheus需要自己根据modbus协议自己写个exporter，正好研究prometheus的golang的SDK，就顺手了个。
+硬件架构 电表 支持modbus的电表不用说了，但因为家里的电箱空间比较小，因此1P的比较适合。
+协议 modbus2tcp: 家里的串口设备也没有那么多，开始有同事建议用TTL转485的，但是TTl的只有树莓派，一直以来感觉树莓派不太稳定。再加上对TCP协议更熟悉一些，所以决定找一个modbus转tcp的转换器，同理也是越小越好。所以就某宝入了一个HF7121，也是冲着体积小去的。一开始买了另一个，体积大不说，调试还没调明白。
+传输 家里没有装修 因此走明线也是可以接受的，所以放弃了各种wifi或者无线的方式。既然可以走线就直接上网线了8根线中的两根，剩下的线还可以用作以后的扩展。
+数据流： Prometheus查询exporter exporter 通过TCP&amp;lt;=&amp;gt;modbus(RS465)&amp;lt;=&amp;gt;电表 进行数据获取 Prometheus把数据存入时序数据库 grafana =&amp;gt; 时序数据库进行查询 这个能干吗：
+可以看到自己家的用电量情况 可以看到各种用电器的用电特性（微波炉 变频空调） 加上点人工智能做智能家居 学以致用，初中那些物理知识重新回顾下 最终效果图： 参考资料 https://bbs.hassbian.com/thread-5634-1-1.html https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=7736 https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1662 https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1472 https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=6081</description></item><item><title>Marslander-火星着陆沙盘回顾</title><link>https://git.yimeng.ch/post/2019/marslander/</link><pubDate>Sat, 18 May 2019 10:40:45 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/marslander/</guid><description>引言 听说凤凰沙盘很久了，这次参加DevOpsDays有幸得到了一张Marslander沙盘。第一次参加沙盘活动，虽然之前对ITIL也有一定的了解，但是这次沙盘将DevOps和ITIL很好的集成了起来，对于长期在一线的运维在流程和协作上会有很大的帮助，拖延了好久，终于抽出空来进行回顾和总结。
+简介 公司已经具备成熟的ITIL流程，包括：事件管理、问题管理、服务台等。现在接到了一个一个登陆火星的计划：需要在这个项目中，用已有的ITIL流程和角色，结合不断纷至沓来的事件、需求、bug、甚至客户的服务满意度调查结果来高效的确保整个项目的顺利进行。
+角色（暂不讨论角色职能）： 产品&amp;amp;销售：
+销售总监：负责根据整体销售目标同产品经理确认每轮需要完成的事情。 产品经理：负责和销售总监分解需求优先级。 IT团队：
+服务台：负责接收各种事件、问题、统计汇总给销售总监和产品经理。 开发 运维 变更发布经理 服务经理 供应商（虽然不属于IT团队，但感觉放到这里更好一些） 反馈回环：
+飞行操作员：负责对相关发布以及改进做出评价。（对事） 客户支持：负责察言观色客户的喜怒哀乐。（对人） 过程（图）： 3个迭代 7个冲刺 每个冲刺都会在Dashboard上显示各个指标（图）
+当前收入 客户满意度 平均解决时间 分组 会场共四个小组：我们小组最后的名称是：只要钱队
+回顾 每次回顾分别从角色、可视化、流程、价值（核心目标）、优先级、质量六个方面进行回顾分析
+角色 可视化 流程 价值（核心目标） 优先级 质量 等待浪费 第一轮 自己和彼此角色定义不清楚 有意识 桌子上看板（沟通不便废弃） 墙上有看板（没有使用） 有意识 角色不清无法建立 最终人员认为是：简单完成任务 无优先级 无质量 等待浪费严重 第二轮 自确认自己的角色定义和职责 改进： 墙上的看板（泳道） 有doing和done 流程依旧没有做好：有瓶颈尚未解决 挣钱 忽略了流程上的瓶颈以及其它指标 无质量 无版本 第三轮 不断提升明确自己的角色定义 完成了可视化 有了真正的BLP 明确了流程，交付物开始增加。 交付了价值，但时间点上交付了错误的价值 从看板中发现价值所在 需求等信息集中到需求池中，但尚未开始排优先级。交付了错误的价值 第四轮 很清晰角色定义 并且互相之间有合作 改进了产生版本回退的概念 第五轮 持续改进不断提升 持续改进不断提升 持续改进不断提升 确保目标正确 持续价值交付 提高满意度 持续改进不断提升 持续改进不断提升 持续改进不断提升 思考 明确角色定义 角色定义沙盘中有10个角色，各个角色都不一定是参与者工作的角色，因此熟悉自己的角色工作职责以及和其它角色建立好沟通就显得尤为重要。</description></item><item><title>Vagrant Alpine</title><link>https://git.yimeng.ch/post/2018/vagrant-alpine/</link><pubDate>Fri, 09 Feb 2018 13:40:05 +0800</pubDate><guid>https://git.yimeng.ch/post/2018/vagrant-alpine/</guid><description>vagrant-alpine自定义实战 背景 在docker CI CD devops各种新鲜事务的潮流下，Pets=&amp;gt;Cattle 也告诉运维要的一个思维的转变。 这个就需要很多的牛来做实验.
+13年在做puppet的CI/CD的时候，单位有一个OpenStack环境，利用api还是很爽的。后来嫌弃创建实例太慢，又开始用了docker。但docker还是有一定的局限性，比如dns和一些系统参数无法修改验证。vagrant也不错，但当时没有一个精简合适的Linux发行版，启动和资源占用还是很耗费电脑的。
+在玩docker的时候，发现了alpine这个系统。几十兆到一百兆，经过优化之后启动大概10s就ok。虽然官方有做好了的vagrant镜像。但是感觉还是不够本地化。就有了自己搞的念头。
+安装alpine alpine下载 如果是virtualbox，选择VIRTUAL版本即可。
+下载回来是一个iso文件，用virtualbox加载引导。用户名root 密码为空。登陆之后运行setup-alpine开始安装。具体内容这里就不说了。可以看这里
+vagrant配置 添加vagrant账户，密码好像无所谓，最好也是vagrant vagrant的公钥放到~/.ssh/下面，注意好.ssh和公钥的权限问题 sudo里加上vagrant root密码为vagrant 网络访问方式需要是NAT，这个在打包的时候vagrant甚至还会检测是否把端口映射关闭掉。 ssh加速需要把sshd里的UseDNS禁止掉，否则可能ssh进去的时候会稍微慢一点 以上是官方的建议，下面来点我自己的干货
+sshd相关配置 sshd里把最大尝试次数设置的多一点,因为在启动的时候vagrant会进行几次尝试，这时候如果出现一些意外的小状况的话，会被sshd直接拒绝，实验环境，密码私钥都是公开的了，也无所谓尝试几次了。
+启动倒计时 启动的时候有3秒的倒计时，如果介意2秒的启动速度的话可以编辑 /etc/update-extlinux.conf文件，设置timeout=1，然后执行update-extlinux，重启即可看到效果
+chrony启动优化 启动的时候chrony会有一些慢，可能是在算本地时钟是否准确。如果介意的话可以编辑/etc/chrony/chrony.conf文件，把initstepslew那行注释掉即可提高启动速度，并且把各种ntp的源找个国内的填上比如 cn.pool.ntp.org
+repo源优化 改成国内的源，并且用@ pin住，如果加了testing等源的话，会提示apk-tools版本太老，可以用
+apk add --upgrade apk-tools@edge 进行升级
+/etc/apk/repositories
+https://mirrors.ustc.edu.cn/alpine/latest-stable/main https://mirrors.ustc.edu.cn/alpine/latest-stable/community @edge https://mirrors.ustc.edu.cn/alpine/edge/main @edgecommunity https://mirrors.ustc.edu.cn/alpine/edge/community @testing https://mirrors.ustc.edu.cn/alpine/edge/testing 最后 找个目录执行
+vagrant package --base vagrant-alpine --output vagrant-alpine.box &amp;ndash;base后面是virtualbox的名称，生成为vagrant-alpine.box。 但别着急编辑vagrantfile，还需要用
+vagrant box list 看一下，否则up执行的可能是已经add过的老box，而不是这个新的。这点尤其要注意，我就被坑了2个多小时。
+调试完毕之后，就可以去https://app.vagrantup.com 注册个账户，把做好的box传上去。hashicorp对于公开的box，是没有限制的。如果要私有化自己的box，5$/m 私有项目数目不限制。
+个人测试上传还好，但是从官网下载的话，还是找个国内速度快的地方搞吧。
+总结 制作本身并没有太难的地方，更多的还是遇到问题解决问题的过程并且总结更有意思一些。以后也多了一个在个人profiles页上的新资源：
+Vagrant.configure(&amp;#34;2&amp;#34;) do |config| config.</description></item><item><title>Hello</title><link>https://git.yimeng.ch/post/2018/hello/</link><pubDate>Sun, 04 Feb 2018 12:44:45 +0800</pubDate><guid>https://git.yimeng.ch/post/2018/hello/</guid><description>开篇 背景 和所有一开始学习语言的情况一样，这又又又是一个简单的hello world句式的开篇。
+一个博客的好坏，真的不在于用什么，访问速度。最后的内容和背后的人有时候反而更重要一些。
+看一下那些年用过的博客工具，以及自己纠结的经历。也算是给自己30岁之前的那些前博(nv)客(you)们一个交代吧。有些人来了，有些人却又走了。
+分类 以下排名按照记忆中接触和使用的顺序排序：
+博客中国 blogbus bo-blog wordpress hexo hugo 以上并没有把微博客算进去，这个可能需要另开一篇文章写了。在这里加个todo吧
+按照时间算:
+2002-2004 2005-2011 2011+ 按照种类分:
+国内托管 自己搭建 静态托管 发展史 托管时代 在那个移动互联网并没有普及的站长时代，随着web2.0的普及，全民开始生产各种内容。而博客中国在我的印象里应该是比较早的为大家提供博客托管服务的，后来文艺的blogbus，娱乐的新浪博客。都是同一时期的产物。
+博客中国有点类似于当时的qq空间，群众基础好，受众面比较广。
+blogbus当属比较好的，有点类似于现在的豆瓣以及青云，界面上走的是文艺范。
+以上都是托管，对于技术来讲并没有什么太好介绍的。不过还是要感谢这些BSP，为那场浪潮开了一个好头。
+自建时代 后来一些有基础的站长，甚至后来的老徐都开始自立门户。这时候就开始催生了一些国内国外的博客程序。
+国内的bo-blog当时搭建简单，界面友好，自带tag等时尚功能。在当时可以说做到了开箱即用，而赢得了一大批国内用户的簇拥。
+而国外的wordpress，其实定位是CMS，比如中文化，搭建资料，搭建难度对于一些小站长都着实有一些难度。再加上不太符合中国人的模板审美。只有一些技术范的站长使用。
+静态托管时代 再后来应该随着ruby的流行，github的流行。大家开始了使用github开始托管各种静态站点
+当我开始关注这一块的时候，jekyll应该已经很成熟了。 大家都开始转向hexo，当然我也没有落俗。跟着用hexo在github上写了几篇。后来发现生成速度确实很慢，加上自己很懒一直也没有很好的写几篇技术文章。
+在大家开始各种公众号发文章，各处演讲的时候。有时候想想是不是应该也把一些想法啥的写下来。不过再开始用的时候发现hexo的生成速度还是不能忍，不知道是老macbook 2013不行了还是咋，又开始了又一轮磨刀不误砍柴工的旅程。当然这过程也不是一帆风顺的。
+我和hego golang的流行和极快的生成速度让大家对于hugo的追捧。尝试了下，速度确实很快！就它了。
+在搭建的过程中，hugo比起hexo的模板，毕竟golang和nodejs，分别就是一前一后的帮派，想要极快的速度就别强求漂亮的模板了。
+看得上眼的，都需要一些前段功底去修改一些细节。于是花了一天稍微研究了下hugo的模板系统，发现没有前端和golang的模板基础，还真的需要一段时间来学习，成本很高。
+为了不忘初心的继续愉快的写文章，最后挑选了一个模板，post和list页可以使用就收手开始写文章</description></item></channel></rss>
