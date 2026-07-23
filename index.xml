@@ -1,0 +1,1608 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>出租窝</title><link>https://git.yimeng.ch/</link><description>Recent content on 出租窝</description><generator>Hugo</generator><language>zh-cn</language><lastBuildDate>Fri, 24 Jul 2026 00:00:00 +0800</lastBuildDate><atom:link href="https://git.yimeng.ch/index.xml" rel="self" type="application/rss+xml"/><item><title>从家用功率监控到家庭数据中枢：HomePulse 的一次再出发</title><link>https://git.yimeng.ch/post/2026/homepulse/</link><pubDate>Fri, 24 Jul 2026 00:00:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2026/homepulse/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;2019 年我写过一篇《家用功率监控》。那时的目标很简单：把电表接进监控系统，看看家里每天用了多少电，顺便观察空调、微波炉这些设备的功率曲线。&lt;/p&gt;
+&lt;p&gt;当时还在文章里留了一个坑：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;加上点人工智能做智能家居。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;几年过去，人工智能已经真的能帮我写代码了，这个坑也终于有机会继续往下填。&lt;/p&gt;
+&lt;p&gt;这一次，我不只想看总功率。手机里的个人健康指标、通知形成的生活事件、全屋不同回路的电量、冰箱和热水器的运行状态，都带着时间戳。如果能把这些分散的信号放进同一条时间线，就不只能回答“现在用了多少电”，还可以尝试回答：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;哪个回路刚刚出现了负载变化；&lt;/li&gt;
+&lt;li&gt;可能是哪类电器启动或停止；&lt;/li&gt;
+&lt;li&gt;一次洗漱、做饭或出行，由哪些事件共同组成；&lt;/li&gt;
+&lt;li&gt;每天大概几点出门、路上花费多久，哪个时间段通勤更快；&lt;/li&gt;
+&lt;li&gt;运动、睡眠、心情和动态健康指标之间有没有值得继续观察的关联。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;于是有了 HomePulse。它不是一套买来即用的智能家居产品，更像是我给家里搭的一套小型数据基础设施。&lt;/p&gt;
+&lt;h2 id="先看整体架构"&gt;先看整体架构&lt;/h2&gt;
+&lt;p&gt;&lt;img src="./homepulse-public-architecture.svg" alt="HomePulse 家庭数据中枢公开版架构图"&gt;&lt;/p&gt;
+&lt;p&gt;这套系统目前分成四层：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;数据来源&lt;/strong&gt;：手机、家庭电表、智能家电和其他本地设备；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;采集与接入&lt;/strong&gt;：Webhook 接收器、本地设备桥接和 MQTT 消息总线；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;存储与处理&lt;/strong&gt;：GreptimeDB 保存原始事件、标准化指标和推断结果；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;使用数据&lt;/strong&gt;：Grafana 负责分析与展示，Home Assistant 负责设备状态和自动化控制。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;底层运行在家里的虚拟化环境中。应用服务集中使用 Docker Compose 编排，时序数据库独立运行。这样做并不是为了把 Homelab 设计得像一个小型企业机房，而是为了把两个不同的生命周期拆开：采集程序可以频繁修改和发布，数据库则尽量稳定地保存历史。&lt;/p&gt;
+&lt;h2 id="两条数据进入路径"&gt;两条数据进入路径&lt;/h2&gt;
+&lt;p&gt;HomePulse 的数据大致通过两条路径进入系统。&lt;/p&gt;
+&lt;p&gt;第一条是手机侧的 HTTPS Webhook。手机上的自动化工具定期发送个人健康指标或通知事件，请求先经过安全隧道进入家庭网络，再由接收器完成鉴权、格式检查、时间统一和字段清洗。&lt;/p&gt;
+&lt;p&gt;第二条是家庭局域网里的 MQTT。电表和智能家电的协议各不相同，本地桥接服务负责和设备通信，再把状态转换成统一的 MQTT Topic。后面的采集程序不需要理解每台家电的私有协议，只需要订阅消息并写入数据库。&lt;/p&gt;
+&lt;p&gt;这两条路径最后汇合到 GreptimeDB。它们的数据形态不完全一样：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;功率、温度、设备状态属于连续变化的时序指标；&lt;/li&gt;
+&lt;li&gt;通知、刷卡、来电和设备开关属于离散事件；&lt;/li&gt;
+&lt;li&gt;设备、回路和电器之间的关系属于变化较慢的元数据；&lt;/li&gt;
+&lt;li&gt;“某类负载可能刚刚启动”属于算法生成的推断事件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;我没有急着把所有内容揉成一张万能表，而是同时保留原始记录和清洗后的结构化数据。解析规则以后发生变化时，原始事件还可以重新处理；Grafana 则优先查询结构化结果，不必在每个面板里重复清洗文本。&lt;/p&gt;
+&lt;h2 id="电量不只是画一条曲线"&gt;电量不只是画一条曲线&lt;/h2&gt;
+&lt;p&gt;最早的电量监控只有一条全屋总功率曲线。现在强电箱里不同回路已经可以分别采集，因此能够把“家里用了多少电”进一步拆成“电用在了哪里”。&lt;/p&gt;
+&lt;p&gt;这里有一个容易踩的坑：其中一路是总进线，其他路是分支回路。做统计时不能把十路直接相加，否则总进线会被重复计算。更有意义的看法是把总进线与各分支之和放在一起：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;两者接近，说明主要回路已经被覆盖；&lt;/li&gt;
+&lt;li&gt;差值长期偏大，可能还有未采集回路、测量误差或设备映射不完整；&lt;/li&gt;
+&lt;li&gt;某个分支突然出现阶跃，可以成为识别电器动作的候选事件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;单看某一时刻的功率，很难判断是什么设备。更可靠的特征包括功率增量、持续时间、周期、波动方式，以及其他设备在相近时间内是否也发生了变化。&lt;/p&gt;
+&lt;p&gt;例如，照明通常是较稳定的小功率阶跃；压缩机设备会周期性启停；水泵往往持续时间较短，并和用水事件相关；变频空调则会经历启动、爬升和动态调节。HomePulse 会先把这些变化记录成候选事件，再结合人工标注逐步形成负载画像。&lt;/p&gt;
+&lt;p&gt;所以这里的“人工智能”并不是一上来就训练一个神奇模型，而是先把数据、事件和反馈链路搭好。每次我告诉系统“刚才是洗漱”“刚才打开了某个设备”，都可以沉淀成一条训练样本。规则、统计模型甚至更复杂的算法，都可以在这套数据基础上逐步迭代。&lt;/p&gt;
+&lt;h2 id="从设备数据到生活事件"&gt;从设备数据到生活事件&lt;/h2&gt;
+&lt;p&gt;只有电量时，很多推断都只能是猜测。接入家电状态后，事件之间开始可以互相验证。&lt;/p&gt;
+&lt;p&gt;例如某个回路出现短时功率变化，如果同时观察到热水器进入工作状态，就比单纯依赖功率形状更可信。如果用水设备启动、照明变化和热水器状态在短时间内连续发生，它们还可能共同描述一次完整的生活场景。&lt;/p&gt;
+&lt;p&gt;通知数据也有类似价值。通知正文并不适合直接展示或长期扩散，因此接收器会尽量提取“事件发生了”以及必要的结构化字段。对于出行类事件，可以把前后两次记录关联成一段行程；对于电话类事件，可以统计发生时间、持续状态和处理结果，而不在看板上暴露号码或正文。&lt;/p&gt;
+&lt;p&gt;这样，HomePulse 里的数据不再只是互不相干的曲线，而是可以沿着时间轴相互解释：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;设备状态变化
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; + 回路功率变化
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; + 手机侧生活事件
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; + 人工场景标注
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ↓
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; 一段可解释的家庭活动
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="这套系统在生活里能回答什么"&gt;这套系统在生活里能回答什么&lt;/h2&gt;
+&lt;p&gt;把数据接进来只是第一步。对我来说，更重要的是它最后能不能回答一些具体、朴素，而且和每天生活有关的问题。&lt;/p&gt;</description></item><item><title>DNS不只是A记录：从Homelab到企业平台的一些思考</title><link>https://git.yimeng.ch/post/2026/dns-platform-directory/</link><pubDate>Thu, 23 Jul 2026 00:00:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2026/dns-platform-directory/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;我最早对 DNS 产生兴趣，不是因为 A 记录，而是因为 MX 记录。&lt;/p&gt;
+&lt;p&gt;刚开始做邮件工程师时，我对域名、主机名和记录之间的对应关系非常敏感。MX 指向的是邮件主机名，不是一个可以随便填写的 IP；邮件主机还要有正确的 A/AAAA 和 PTR；发送时的 EHLO、反向解析以及 SPF、DKIM、DMARC 又共同影响着身份判断和投递结果。一个看起来不起眼的主机名不一致，就可能让邮件进入垃圾箱，甚至直接被拒收。&lt;/p&gt;
+&lt;p&gt;那段经历让我第一次意识到：DNS 并不只是“域名解析到 IP”的电话簿。它同时参与了服务定位、身份表达、信任建立和系统边界的划分。域名怎么分层、主机名怎么命名、正向和反向是否一致，这些都属于系统设计的一部分。&lt;/p&gt;
+&lt;p&gt;2019 年写《家用DNS选择》时，我又从邮件系统回到了 Homelab：家里 DHCP 分配的 IP 总在变化，希望找一个轻量、支持 API、方便迁移的 DNS 服务。那时最直接的需求仍然是给变化的地址一个稳定名称，但继续往下折腾后会发现，A 记录只是 DNS 最基础的一种玩法。&lt;/p&gt;
+&lt;p&gt;DNS 还能描述服务端口和优先级、发布少量资源元数据、引导 Agent 找到平台入口、约束证书签发，并成为自动化和安全审计的一部分。这些能力不只适用于 Homelab：小公司需要低成本的服务发现和资产归属，大公司则需要域名委派、权限、审计、高可用和安全治理。规模不同，组件和管理方式会变，但底层原则是通用的。&lt;/p&gt;
+&lt;p&gt;这篇文章不是某个 DNS 产品的部署手册，也不是一个项目实施计划，而是我对 DNS 在基础设施和平台系统中还能承担哪些职责的一次整理：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;DNS 负责回答“去哪里、怎么连接、由谁管理”；平台 API 负责实时状态、完整配置、权限和复杂业务逻辑。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;或者说得更简单一点：&lt;strong&gt;DNS 是目录，不是数据库；是路标，不是目的地。&lt;/strong&gt;&lt;/p&gt;
+&lt;h2 id="我理解的-dns-设计原则"&gt;我理解的 DNS 设计原则&lt;/h2&gt;
+&lt;h3 id="名称是稳定契约地址只是实现细节"&gt;名称是稳定契约，地址只是实现细节&lt;/h3&gt;
+&lt;p&gt;IP、机房、集群和容器都会变化，但调用方不应该跟着基础设施不断修改配置。一个稳定的服务名称应当成为客户端与平台之间的契约，再由 A、AAAA 或 CNAME 把它映射到当前实现。&lt;/p&gt;
+&lt;h3 id="域名层级应该表达稳定边界"&gt;域名层级应该表达稳定边界&lt;/h3&gt;
+&lt;p&gt;域名结构适合表达环境、项目、服务等相对稳定的维度，例如 &lt;code&gt;api.test.project.example.com&lt;/code&gt;。团队名称和负责人经常变化，更适合放在 TXT 或服务目录中，而不是永久编码进域名。好的域名规划应该支持委派，让不同团队能够管理自己的命名空间，而不必共享整个根域的修改权限。&lt;/p&gt;
+&lt;h3 id="正向和反向解析是一套完整身份"&gt;正向和反向解析是一套完整身份&lt;/h3&gt;
+&lt;p&gt;邮件系统让我对 PTR 特别敏感，但这个原则并不局限于邮件。A/AAAA 回答“这个名字在哪里”，PTR 回答“这个地址是谁”。两者一致时，日志、审计、资产核对和故障排查都会清晰很多。&lt;/p&gt;
+&lt;h3 id="主机名应该成为物理资产的稳定索引"&gt;主机名应该成为物理资产的稳定索引&lt;/h3&gt;
+&lt;p&gt;以前管理几百台物理服务器时，一个很实用的原则是：日常运维使用主机名，不直接使用 IP。&lt;/p&gt;</description></item><item><title>AI帮我盘点了这八年的博客</title><link>https://git.yimeng.ch/post/2026/ai-summary/</link><pubDate>Wed, 22 Jul 2026 23:00:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2026/ai-summary/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;距离上一篇文章又过去两年了。这次回来的起因很朴素：想把博客重新捡起来，结果发现部署流水线坏了——Hugo 语法废弃、CI 的 Token 过期。索性让 AI 来修，修完之后又顺手让它把这八年写的 30 多篇文章全部读了一遍，盘点了一下这个&amp;quot;出租窝&amp;quot;里都堆了些什么。&lt;/p&gt;
+&lt;p&gt;这篇文章就是 AI 交上来的盘点报告。我审核过了，除了比我自己写的有条理之外，基本属实。也算是这个博客的一个新阶段：&lt;strong&gt;人负责折腾，AI 负责记录&lt;/strong&gt;。&lt;/p&gt;
+&lt;h2 id="这八年都写了些什么"&gt;这八年都写了些什么&lt;/h2&gt;
+&lt;p&gt;AI 把历年文章分成了几条主线，看完我自己都有点惊讶，原来这些年反反复复就在折腾这么几件事。&lt;/p&gt;
+&lt;h3 id="一homelab一个永恒的无底洞"&gt;一、Homelab：一个永恒的无底洞&lt;/h3&gt;
+&lt;p&gt;从 2019 年的《家用功率监控》开始，到 2021 年两篇《homelab再出发》的硬件选型纠结（&amp;ldquo;一开始我只想买个自行车，谁知道最后买了一个劳斯莱斯幻影&amp;rdquo;），再到 2022 年的 proxmox-lxc、2023 年的温度监控和指标优化——homelab 是这个博客出现频率最高的话题。&lt;/p&gt;
+&lt;p&gt;最有代表性的成果是 2022 年的&lt;strong&gt;家庭电量可观测性四部曲&lt;/strong&gt;：从论坛上&amp;quot;家里整体功耗才是王道&amp;quot;一句话入坑，啃 modbus 协议、CRC 校验，用 Golang 手写 Prometheus exporter，最后把全屋用电搬上了 Grafana。这件事完美体现了本博的一贯作风：为了一句话，搭进去几个月。&lt;/p&gt;
+&lt;h3 id="二基础设施即代码从读书到实践"&gt;二、基础设施即代码：从读书到实践&lt;/h3&gt;
+&lt;p&gt;2021 年是 IaC 主题的大年：《基础设施即代码-读书笔记》、cloud-init、PXE、pulumi 尝鲜、懒人搭建 k8s。一条清晰的路线是：先把方法论读明白，再在自己的 homelab 里一样一样落地。&lt;/p&gt;
+&lt;p&gt;AI 还发现了一个有趣的细节：2023 年那篇《由terraform-proxmox-provider想到的》，已经从&amp;quot;怎么用工具&amp;quot;转向了&amp;quot;开源生态的维护和适配成本&amp;quot;这种更成熟的思考——原话是&amp;quot;客户面临着维护成本和历史债务问题，这部分虽然不好啃，但可能依旧是刚需&amp;quot;。&lt;/p&gt;
+&lt;h3 id="三监控与可观测性老本行"&gt;三、监控与可观测性：老本行&lt;/h3&gt;
+&lt;p&gt;作为运维出身，监控是写得最成体系的部分：2020 年的《监控最佳实践-指标篇》（USE/RED/Google SRE 四大黄金信号）、《Grafana最佳实践》（Grafana as Code），到后来 homelab 监控里&amp;quot;云端每个指标都要发挥人民币的价值&amp;quot;的指标治理思路。从&amp;quot;怎么监控&amp;quot;到&amp;quot;监控什么才值得花钱&amp;quot;，视角明显在变化。&lt;/p&gt;
+&lt;h3 id="四生活写得少但都在"&gt;四、生活：写得少，但都在&lt;/h3&gt;
+&lt;p&gt;博客工具变迁史的《Hello》开篇、《出租窝装修记》立下的&amp;quot;每周更新一篇&amp;quot;的 flag（后来证明 flag 就是用来倒的）、疫情期间送走亲人的年度总结、火星着陆沙盘、露营车调研、第一次做运维培训给自己打 60 分……技术文章之外，这些才是&amp;quot;出租窝&amp;quot;这个名字真正的底色。&lt;/p&gt;
+&lt;h2 id="ai-的观察"&gt;AI 的观察&lt;/h2&gt;
+&lt;p&gt;让 AI 读完所有文章后，它总结了几个我自己都没意识到的规律：&lt;/p&gt;</description></item><item><title>运维培训总结</title><link>https://git.yimeng.ch/post/2024/%E8%BF%90%E7%BB%B4%E5%9F%B9%E8%AE%AD%E6%80%BB%E7%BB%93/</link><pubDate>Sat, 20 Apr 2024 10:45:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2024/%E8%BF%90%E7%BB%B4%E5%9F%B9%E8%AE%AD%E6%80%BB%E7%BB%93/</guid><description>&lt;h2 id="前言"&gt;前言&lt;/h2&gt;
+&lt;p&gt;420有幸做了人生第一次的运维培训，如果给自己打一个分的话100分估计只能给个60分。趁着热乎劲还在总结一下。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20240425161249905.png" alt="image-20240425161249905"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20240425161308273.png" alt="image-20240425161308273"&gt;&lt;/p&gt;
+&lt;h2 id="做的好的地方"&gt;做的好的地方&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;从业以来碰到的各种问题和经验都能经过思考输出，在讲课的时候即便没有讲稿也可以持续的输出。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;互动做的还不错，可以有效的进行一些提问和让线下的同学产生一些“矛盾”和讨论。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;不紧张，在40来个老运维面前，能够给做到不怯场沟通。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;前期准备了一些补充材料，弥补了课件内容的方向单一的问题。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="做的不好的地方"&gt;做的不好的地方&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;没有前期充分调研客户的部门分布和领导期望，挑起了中心和地方部门之间关于告警之间的激烈讨论。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;材料依旧需要精进，尽管之前把一本经典的运维书籍读了好多遍，但依旧感觉内容还有提高的地方。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;应该加强一些课程上的比赛和激励机制，这次忽略了激励机制，虽然内容比较好，但他们自己之间的互动可能更好。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;加强体力锻炼，本次两天的课程，其中第一天他们有一些自己部门的分享，也参加了下。基本上第一天接近于12小时，第二天也超过了8小时的课程。所以体力消耗上还是非常大的。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;做完培训上的分析，接下来可以说说本次案例企业遇到的一些问题和解决之道。&lt;/p&gt;
+&lt;h2 id="背景问题"&gt;背景/问题&lt;/h2&gt;
+&lt;p&gt;企业分为中心运维和区域运维两个部分，刚刚实行了双向汇报的机制。平时坐到一起沟通的机会甚少。&lt;/p&gt;
+&lt;p&gt;区域运维的水平不一。有的人员充足，有的只有一个单点的运维。有的责任心较强，可以主动的处理故障和处理告警。但有的只能处于被动接受告警的情况，且对于系统的架构并不了解。&lt;/p&gt;
+&lt;p&gt;中心运维强管理，虽然嘴上说着有商有量。但还是做的ITIL那种管控的文化。修改一个监控的阈值都要进行讨论审批，理由是怕下面的运维瞎改。而且阈值是经过中心专家评审过的，应该不会有太大的问题。应急响应是要求区域运维3分钟响应告警，30分钟处理完毕。&lt;/p&gt;
+&lt;p&gt;以上是这种架构组织经常遇到的情况，其实只是大家屁股坐的不一样并且看待一个相同的事件的时候，有这不一样的文化的问题。倒是有点类似于《置身事内》那本书里写的中央与地方的关系一样。&lt;/p&gt;
+&lt;h2 id="如何破解"&gt;如何破解&lt;/h2&gt;
+&lt;p&gt;破解之道估计长期只能依靠时间上的组织文化变更，短期只能依靠哪个部门更加得宠和嗓门大。这需要一个过程，但是在过程的期间，可能出现各种阵痛。比如部门间的不和谐、人员流失、相关经验得不到传承、故障频出等等问题。&lt;/p&gt;
+&lt;p&gt;好在这个部门的运维负责人不是空降，而是从本企业一线提拔上来的老运维。对于运维的责任心以及各种细节都比较了解。但也对于山高皇帝远的区域运维的管控力上力不从心。只能从加强一些中心运维的能力和管控方面着手。并且HR部门对于运维方面的培训和团队建设也比较重视，毕竟运维出现过很多次问题和故障直接影响了公司的收入。以前这个运维团队是放到了研发团队里，出现了几次故障，公司越发的感觉运维的重要性，把运维团队独立了出来。&lt;/p&gt;
+&lt;p&gt;如果一个企业的业务和运维强相关，例如运营商、电力这种广义的运维没有，基本上就相当于不存在本行业一样。这样的运维可能更幸福一些，但也偏保守一些。而金融、地产、物流等这种没了互联网可能也照样活（有些行业没了互联网现在可能也不太行，但互联网对于他们应该是锦上添花的事情）的行业。可能互联网+的情况是需要一个创新和速度。因为失败了成本也比较低，不如搏一把。&lt;/p&gt;
+&lt;p&gt;这个被培训的企业就是在一个偏传统的运维模式，但是用的技术却比较新。且受制于甲方爸爸的硬件和资金的需求。自己只作为运维方。所以中心运维强管理的模式还是比较适合，只是可能前期用力过猛，地方有反弹罢了。但可能也存在一定的风险就是前期的一些阵痛和后期可能又被各地诸侯直接打回原形的问题。&lt;/p&gt;
+&lt;h2 id="培训时遇到的一些问题"&gt;培训时遇到的一些问题&lt;/h2&gt;
+&lt;p&gt;没记住每一个问题，但大多是关注在如何“甩锅”的问题，因为变更的时候让他们背锅的地方和边界有点模糊不清。加上研发和甲方爸爸的双重压力，以及中心运维的强管制。这些问题其实都可以用前期规范变更操作进行规避。&lt;/p&gt;
+&lt;p&gt;还有一些问题是关于变更的技术问题，比如如何灰度、监控如何处理毛刺等问题。这些其实都有一定的最佳实践，想比技术来说，已经算比较好解决的了。&lt;/p&gt;
+&lt;p&gt;最后一种问题其实还是集中在中心和地方的矛盾上，地方说人少没办法符合中心的要求，中心说地方没有好的责任心和主动意识。这种问题还是建议他们进行轮岗，增强一种同理心。然而，在这种矛盾已经快到了激化的情况下，不知道他们能不能听得进去。&lt;/p&gt;
+&lt;p&gt;就像《高效能团队模式》里说的平台团队一样，对于平台团队的定义应该是：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;平台团队的目标是使流动式团队能够以高度自治的方式交付工作。流动式团队在生产环境中拥有构建、运维、修复应用的所有权限。平台团队提供的内部服务使得流动式团队无须开发底层服务，降低了认知负荷。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;而目前大多数的实际是：平台管理团队。除了用我的平台，还要管理你的行为。例如：调整监控阈值要经过管理团队的审批。平台使用的问题要去阅读厚厚的说明手册。&lt;/p&gt;
+&lt;h2 id="关于中心化的监控"&gt;关于中心化的监控&lt;/h2&gt;
+&lt;p&gt;这个问题也很有趣，在介绍关于监控的监控的问题上，引出了是否要有一个中心化的监控去监控各个区域的监控系统的问题。因为是中心和区域的关系，区域目前有一个自己的监控系统，把一些告警信息发送到中心统一的告警平台中。来实现告警的追踪。下一步打算把各个区域的监控数据集中收集展示。但却没有想好为何一份数据要存储两遍以及如何使用的问题。&lt;/p&gt;
+&lt;p&gt;其实这个问题最重要的就是ROI，监控数据存了两份其实并不是重点。例如如下的一些考量点则是存在这个中心化监控的主要问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;统一展示：这个使用一个grafana就可以完美的低成本解决。&lt;/li&gt;
+&lt;li&gt;监控的监控：这个如果中心监控出现问题，也会让监控的监控出现单点问题。&lt;/li&gt;
+&lt;li&gt;数据集中：大量的无效数据在中心进行处理和告警灵活性和成本都不是一个最佳解决。&lt;/li&gt;
+&lt;li&gt;集中告警：告警目前各个区域的监控系统直接推送给各个区域本身的运维人员，集中了再告警反而增加了路径和故障点。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上的可能不太是一个集中监控存在的意义，但一下可能对于集中监控存在的意义有了一些不同的理由：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;统一的数据的分析：这个集中的意义就是一个数据湖的概念，过于分散数据可能不便于分析。&lt;/li&gt;
+&lt;li&gt;需要一些业务统计上的数据：不收集全量的监控数据，而是收集一些全局视角的数据，且不用于告警。可能是比较收敛的一个方式，兼顾了成本和管理的平衡。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="总结"&gt;总结&lt;/h2&gt;
+&lt;p&gt;通过这次真正意义上的首秀，坚定了之后的一个大致的方向。以前的各种经验和一些好的书籍整理成自己的知识库。可以的话形成相关的书籍。不管有没有用，都是对自己这么多年来从业的一个交代。&lt;/p&gt;</description></item><item><title>露营车调研</title><link>https://git.yimeng.ch/post/2024/folding-wagon/</link><pubDate>Fri, 08 Mar 2024 10:45:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2024/folding-wagon/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;春天来了又要把露营车提上日程来了，以前加入了北欢的露营车到购物车。但是有看到了有贵州钢铁侠的电动露营车。因此开始了调研之路。&lt;/p&gt;
+&lt;h2 id="种类"&gt;种类&lt;/h2&gt;
+&lt;h3 id="电动露营车"&gt;电动露营车&lt;/h3&gt;
+&lt;p&gt;看了下主要有三种&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;咸鱼上有一些自己改的&lt;/li&gt;
+&lt;li&gt;成品&lt;/li&gt;
+&lt;li&gt;贵州钢铁侠&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="咸鱼魔改"&gt;咸鱼魔改&lt;/h4&gt;
+&lt;p&gt;咸鱼上一些自己改的基本在1K以内的价格，也是一个电机、一个电控、一个遥控器。如下图:
+&lt;img src="https://gw.alicdn.com/bao/uploaded/i2/O1CN01lInBAZ1Mnt61E3FmO_!!0-fleamarket.jpg_q50.jpg_.webp" alt="咸鱼上的图片"&gt;&lt;/p&gt;
+&lt;p&gt;不过这种大多数是模仿贵州钢铁侠的文案，没验证过具体货品情况，但胜在便宜。支持种类大多是马科图、珠穆朗玛这两种工模露营车。&lt;/p&gt;
+&lt;h4 id="成品"&gt;成品&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;podoa&lt;/li&gt;
+&lt;li&gt;pqdoq
+这两个牌子基本都在500左右 前轮靠拢，不知道具体效果如何。续航3-6公里，称重和容量都很模糊。想尝尝鲜的可以尝试。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="贵州钢铁侠"&gt;贵州钢铁侠&lt;/h4&gt;
+&lt;p&gt;在B站和小红书以及抖音上都有相关视频和晒单的。大多是好评，当然也有老公买完，老婆吐槽没啥用的用户。价格比较美丽 全套下来基本在3K左右（包含露营车本身）。主要构成为电动套件、露营车、电池三部分。电动套件大概2K 露营车和电池分别500左右。续航20公里。根据视频介绍，有一些走直线的算法，以及各种人性化的考量。各位可以B站或者淘宝进行搜索。&lt;/p&gt;
+&lt;p&gt;最新的为4.0版本，大概有三种型号&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;普通版本（普通露营车）&lt;/li&gt;
+&lt;li&gt;碳钢版本（重量轻）&lt;/li&gt;
+&lt;li&gt;MAX载重版本（容量大）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="非电动露营车"&gt;非电动露营车&lt;/h3&gt;
+&lt;p&gt;这个种类可以叫做常规露营车。
+根据材质区分也分为碳钢和铝合金两种。铝合金比较轻，比较推荐。
+根据是否有翻斗也可以分为翻斗款和普通款。翻斗就是尾部可以放到，有点类似于皮卡后面的翻斗。
+根据收纳方式分为聚拢款盒折叠款，聚拢款就是变成一根棍的感觉。折叠就是变成一个片状的感觉。具体可以根据自己家和后备箱的收纳方式自由选择。
+还有是否带轴承、拉手是否人性化、轮子宽窄等等区别。各位看官可以移步B站各种评测学习。&lt;/p&gt;
+&lt;p&gt;上面是大致的一种分类方式，具体牌子大致如下：&lt;/p&gt;
+&lt;p&gt;马科途 珠穆拉玛 牧高笛 挪客 北欢 京东京造&lt;/p&gt;
+&lt;h4 id="马科途珠穆拉玛"&gt;马科途（珠穆拉玛）&lt;/h4&gt;
+&lt;p&gt;马科途和珠穆拉玛电动露营车改造的比较多，原因大概是车架比较“统一”，淘宝上也有很多类似车架的版本（比如贵州钢铁侠推荐的几个车架）。&lt;/p&gt;
+&lt;h4 id="牧高笛"&gt;牧高笛&lt;/h4&gt;
+&lt;p&gt;牧高笛的S2和S1买的人也比较多，其中S1有一个山姆版本，价格在300左右，比较受欢迎。&lt;/p&gt;
+&lt;h4 id="挪客"&gt;挪客&lt;/h4&gt;
+&lt;p&gt;挪客在B站的一些up主那有推荐，具体没太了解过。&lt;/p&gt;
+&lt;h4 id="北欢"&gt;北欢&lt;/h4&gt;
+&lt;p&gt;北欢在小红书上喜欢的程度比较多，有pro和plus版本。pro有翻斗，plus容量更大一些。&lt;/p&gt;
+&lt;h4 id="京东京造"&gt;京东京造&lt;/h4&gt;
+&lt;p&gt;京东京造应该属于性价比比较高的那种，价格比较有优势。&lt;/p&gt;
+&lt;p&gt;以上就是个人在整个搜索过程中的一些主观印象。具体每个品牌的容量和功能以及细节还需要各位自己做功课进行甄别。&lt;/p&gt;
+&lt;h2 id="我的选择"&gt;我的选择&lt;/h2&gt;
+&lt;p&gt;鉴于我的钱包告诉我，你暂时可能也许不需要一个电动版本的露营车。但是我允许你具备改造成电动自行车的能力。因此就选择了一个贵州钢铁侠推荐的车架。方便后面改造成电动露营车。目前就先作为普通的露营车使用。一个从河北发货的，铝合金的容量200L的露营车，自重大概10.5KG，加上个遮阳伞共计大概600左右。后续如果有需要，在追加一个1799的改装套件+500块钱的电池即可。具体参数如下：&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://img.alicdn.com/imgextra/i1/1091632109/O1CN01glfyyb1RRyEPCDprl_!!1091632109.jpg" alt="露营车"&gt;&lt;/p&gt;</description></item><item><title>办公室实验环境</title><link>https://git.yimeng.ch/post/2024/office-lab/</link><pubDate>Fri, 02 Feb 2024 10:45:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2024/office-lab/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;日结工的公司发了一个加入域的windows11笔记本，没有管理员权限。只能放到那里当成一个大的打卡机，有点浪费。如何有效的利用起来？&lt;/p&gt;
+&lt;h2 id="方案"&gt;方案&lt;/h2&gt;
+&lt;p&gt;正好对于gitops比较感兴趣，因此规划了如下几个场景功能：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;虚拟机&lt;/li&gt;
+&lt;li&gt;git仓库&lt;/li&gt;
+&lt;li&gt;利用vagrant和ci做一些镜像的测试工作&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="部署图"&gt;部署图&lt;/h2&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20240202104716512.png" alt="image-20240202104716512"&gt;&lt;/p&gt;
+&lt;p&gt;部署图如上，选取了gitea的一个二进制进行部署。然后使用cloudflare进行了泛域名解析，用traefik来进行域名的路由。gitea的runner负责在windows机器上执行各种命令。控制vagrant和VirtualBox来进行镜像打包。有时候这个机器的wifi可能不太好用，使用runner定时重启一下。别问我为啥不用windows自己的服务。没有管理员权限只能用这些骚操作了。&lt;/p&gt;
+&lt;h2 id="代码"&gt;代码&lt;/h2&gt;
+&lt;p&gt;相关配置文件可以移步如下git仓库进行获取&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;https://github.com/yimeng/office-lab.git
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="问题"&gt;问题&lt;/h2&gt;
+&lt;p&gt;这个方案在runner那调用powershell或者cmd的时候会有一些问题，例如执行时间太长（调用vagrant的时候下载box），runner中看不到回显，排错问题等等。因此执行一些简单的任务还可以，用于ci操作系统镜像还是有点问题。可以建议将runner放到VirtualBox的linux的虚拟机中进行执行。避开windows没有管理员权限和调试的窘境。&lt;/p&gt;
+&lt;h2 id="扩展"&gt;扩展&lt;/h2&gt;
+&lt;p&gt;如果可以还可以用cloudflare把相关端口暴露出去，这样就可以通过外网访问办公室的实验环境了，但需要做好相应的安全措施。但目前没有管理员权限，只能作罢。&lt;/p&gt;</description></item><item><title>由terraform-proxmox-provider想到的</title><link>https://git.yimeng.ch/post/2023/homelab-proxmox-terraform-plugin/</link><pubDate>Thu, 07 Dec 2023 18:22:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2023/homelab-proxmox-terraform-plugin/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;前几天看到一个直播，发现了一个&lt;a href="https://www.seal.io/zh"&gt;国内的创业公司&lt;/a&gt;发布了一个&lt;a href="https://seal-io.github.io/docs/zh/"&gt;IaC的平台系统&lt;/a&gt;。原理就是利用Terraform和K8S的能力，为开发者提供了一个基础设施创建以及编排的平台。试用了下，虽然还不太完善，但总体的功能和思路还是非常不错的。轻量级，可以利用Terraform的插件生态（pulumi也是这么搞，不然适配各种云的成本真的很高）。&lt;/p&gt;
+&lt;p&gt;因为这个系统依赖Terraform的模块，以前正好写过一个&lt;a href="https://github.com/yimeng/terraform-proxmox-module"&gt;基于proxmox的Terraform模块&lt;/a&gt; 。然而，由于我的proxmox升级到了8.0.4了之后，使用了&lt;a href="https://github.com/Telmate/terraform-provider-proxmox"&gt;telmete的proxmox provider的插件&lt;/a&gt;，就出现了crashed的现象，详见&lt;a href="https://github.com/Telmate/terraform-provider-proxmox/issues/863"&gt;Error: The terraform-provider-proxmox_v2.9.14 plugin crashed! (Proxmox 8.0.4 latest update)&lt;/a&gt; 的讨论。&lt;/p&gt;
+&lt;p&gt;然后就开始有人谈论关于telmete的provider是否已经不更新了：&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://github.com/Telmate/proxmox-api-go/issues/281"&gt;Is the Proxmox provider dead?&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;还有人已经转向了&lt;a href="https://github.com/bpg/terraform-provider-proxmox"&gt;另一个proxmox的provider&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;然后经过一番努力，还是有人进行了一个修复&lt;a href="https://github.com/Tinyblargon/proxmox-go-sdk/pull/7"&gt;Fix: memory type conversion panic&lt;/a&gt; 不过可能需要重新的编译或者等待。&lt;/p&gt;
+&lt;h2 id="开源"&gt;开源&lt;/h2&gt;
+&lt;p&gt;当软件产品更新越来越快，开源软件之间的适配也越来越繁琐。君不见k8s的API和周边生态，真的是日新月异。各种微服务的复杂度在实施的时候也是各种百花齐放。经历过centos的大版本缓慢的变化的时期，步入了容器微服务的时代。不知道这事是好是坏。宠物和牛的变化的观念可能占据了主流。但是商业产品在这一点上可能会变成一个“卖点”，解决各种版本的兼容和适配问题。毕竟客户面临这还有维护成本和历史债务问题，这部分虽然不好啃，但可能依旧是刚需。&lt;/p&gt;
+&lt;p&gt;话说回来，我这个重启Terraform的proxmox的模块，打算明天看看是否能够升级下插件版本。另一方面，也需要转向另一个插件进行下模块重构了。虽然有成本，但也不得不做。毕竟开源就是有这种问题，随大流不一定技术正确，但可能是市场正确的唯一选择。只是这么做就可惜了好多好的技术和产品了。（例如SUN）&lt;/p&gt;
+&lt;h2 id="后记"&gt;后记&lt;/h2&gt;
+&lt;p&gt;留个坑，待更新。&lt;/p&gt;</description></item><item><title>利用免费的SaaS监控homelab-指标优化</title><link>https://git.yimeng.ch/post/2023/homelab-monitor-metrics/</link><pubDate>Tue, 05 Dec 2023 13:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2023/homelab-monitor-metrics/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;上一篇文章写到如何使用SaaS来监控homelab，但是除了温度和功耗，主机的一些基础信息也需要一起更新起来。但，我们用的是SaaS。每一个metric都是跟钱息息相关的。所以对于指标的精简就显得尤其重要。其中的原则就是：放到SaaS上的一定是自己知道并且看懂的指标，看不懂以及无用的指标可以收集，但建议放到本地，不建议集中存储。&lt;/p&gt;
+&lt;h2 id="部署图"&gt;部署图&lt;/h2&gt;
+&lt;!-- raw HTML omitted --&gt;
+&lt;p&gt;在homelab中加入了本地的prometheus，在remote write给grafana cloud的时候，将自己理解并且需要的指标写到grafana cloud中。本地根据磁盘大小进行存放，云端尽量让每个指标都发挥人民币的价值。&lt;/p&gt;
+&lt;h2 id="问题"&gt;问题&lt;/h2&gt;
+&lt;p&gt;这个架构并不复杂，但是如何治理相关的指标就成了下一个问题。例如：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;node-exporter这个插件究竟收集了哪些指标，哪些指标是常用的。&lt;/li&gt;
+&lt;li&gt;remote write如何进行指标的选择性发送。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;饭要一口一口的吃，问题要一个一个的解决。我们先解决remote write如何方便的过滤相关指标这个问题。感谢万能的chatGPT，这个问题chatGPT给出了很好的解答（水一下）&lt;/p&gt;
+&lt;p&gt;在 Prometheus 的上下文中，&amp;ldquo;remote write&amp;rdquo; 是一个功能，它允许 Prometheus 将收集到的监控数据发送到远程存储系统。这通常用于长期数据存储、数据聚合或在多个 Prometheus 实例之间共享数据。关于 &amp;ldquo;label 治理&amp;rdquo;（label management），这通常涉及到管理和优化 Prometheus 中的标签（labels），以确保数据的有效组织和查询性能。&lt;/p&gt;
+&lt;h3 id="问题一"&gt;问题一&lt;/h3&gt;
+&lt;p&gt;prometheus 中的remote write如何进行label治理：&lt;/p&gt;
+&lt;p&gt;在使用 Prometheus 的 remote write 功能进行 label 治理时，可以考虑以下几个方面：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;标签重命名和删除&lt;/strong&gt;：在将数据发送到远程存储之前，可以重命名或删除某些标签。这有助于减少存储需求和简化查询。这通常通过 Prometheus 的配置文件中的 &lt;code&gt;metric_relabel_configs&lt;/code&gt; 部分来实现。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;保持标签一致性&lt;/strong&gt;：确保在整个监控系统中使用一致的标签名称和值，这有助于查询时的效率和准确性。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;避免高基数标签&lt;/strong&gt;：高基数标签（即具有大量唯一值的标签，如用户 ID）可能会导致存储和查询性能问题。在将数据发送到远程存储之前，考虑删除或聚合这些标签。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;使用标签过滤&lt;/strong&gt;：在配置 remote write 时，可以指定只发送包含特定标签的时间序列。这有助于减少发送到远程存储的数据量。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;优化标签集&lt;/strong&gt;：限制每个时间序列中标签的数量，避免不必要的标签，以减少存储需求和提高查询效率。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;使用远程存储的特性&lt;/strong&gt;：某些远程存储解决方案可能提供额外的标签管理功能，如自动标签聚合或特殊的索引机制。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;要实现这些策略，你需要编辑 Prometheus 的配置文件，特别是 &lt;code&gt;remote_write&lt;/code&gt; 部分，并可能需要调整你的远程存储解决方案的配置。建议在进行任何重大更改之前，先在测试环境中验证这些更改的影响。&lt;/p&gt;
+&lt;h3 id="问题二"&gt;问题二&lt;/h3&gt;
+&lt;p&gt;详细介绍下在remote write的时候使用标签过滤和优化标签集&lt;/p&gt;
+&lt;p&gt;在 Prometheus 中使用 remote write 功能时，进行标签过滤和优化标签集是一种有效的数据管理策略。这些技术有助于减少发送到远程存储的数据量，提高存储效率，同时保持重要数据的完整性。下面详细介绍这两个方面：&lt;/p&gt;</description></item><item><title>利用免费的SaaS监控homelab</title><link>https://git.yimeng.ch/post/2023/homelab-monitor/</link><pubDate>Tue, 05 Dec 2023 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2023/homelab-monitor/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;因为家里的homelab和NAS服务器怕娃进行物理性破坏，放到了一个稍微有点密闭的空间里。因此温度监控就比较重要，防止过热产生的各种问题。&lt;/p&gt;
+&lt;h2 id="收集"&gt;收集&lt;/h2&gt;
+&lt;p&gt;homelab是个AMD的小主机，通过sensors命令可以很容易得到，NAS则需要使用SNMP获取到。&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;root@homelab:~# sensors
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;iwlwifi_1-virtual-0
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Adapter: Virtual device
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;temp1: N/A
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;nvme-pci-0100
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Adapter: PCI adapter
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Composite: +38.9°C &lt;span style="color:#f92672"&gt;(&lt;/span&gt;low &lt;span style="color:#f92672"&gt;=&lt;/span&gt; -0.1°C, high &lt;span style="color:#f92672"&gt;=&lt;/span&gt; +74.8°C&lt;span style="color:#f92672"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;(&lt;/span&gt;crit &lt;span style="color:#f92672"&gt;=&lt;/span&gt; +79.8°C&lt;span style="color:#f92672"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;amdgpu-pci-0600
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Adapter: PCI adapter
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;vddgfx: 1.36 V
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;vddnb: 756.00 mV
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;edge: +45.0°C
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;PPT: 11.00 W
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;k10temp-pci-00c3
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Adapter: PCI adapter
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Tctl: +69.8°C
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="服务端选型"&gt;服务端选型&lt;/h2&gt;
+&lt;p&gt;方法有了，那么下一步就是找一个免费白嫖的SaaS监控服务。国内有观测yun，国外有grafana，datadog等。国产的guance云用了下，用户体验过于“专业”，小人愚笨，感觉入门门槛比较高，放弃。datadog抄guance云，用户体验如出一辙，也放弃。剩下grafana了，虽然grafana照比以前也复杂臃肿了很多，但依旧在用户体验和技术投入产出比上有这一定优势，虽然存在国外站点传输上的问题，但稍微不稳定也还可以接受，谁让咱是白嫖呢。最后定格grafana cloud服务。&lt;/p&gt;
+&lt;p&gt;grafana cloud包含如下组件：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Grafana Instance&lt;/li&gt;
+&lt;li&gt;Prometheus Endpoint&lt;/li&gt;
+&lt;li&gt;Graphite Endpoint&lt;/li&gt;
+&lt;li&gt;Logs Backend&lt;/li&gt;
+&lt;li&gt;Traces Backend&lt;/li&gt;
+&lt;li&gt;Performance Testing&lt;/li&gt;
+&lt;li&gt;Unlimited Dashboards&lt;/li&gt;
+&lt;li&gt;Community Support&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="收集端选型"&gt;收集端选型&lt;/h2&gt;
+&lt;p&gt;其中Graphite Endpoint还可以直接支持proxmox的&lt;a href="https://pve.proxmox.com/wiki/External_Metric_Server"&gt;External Metric Server&lt;/a&gt; ，但需要安装一个Carbon-Relay-NG进行转发。懒得装了，反而找到一个&lt;a href="https://github.com/prometheus/graphite_exporter"&gt;graphite_exporter&lt;/a&gt; 可以用来把接收到的graphite数据转成Prometheus的exporter。尝试了下，也还可以。但是有可能有一些限制，比如因为性能问题，一段时间的指标数据会丢弃啥的。&lt;/p&gt;</description></item><item><title>小型办公室网络指北</title><link>https://git.yimeng.ch/post/2022/office-network/</link><pubDate>Wed, 22 Jun 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/office-network/</guid><description>&lt;h1 id="背景"&gt;背景&lt;/h1&gt;
+&lt;p&gt;尽力过自己加的homelab网络、某创业公司从10来人到200来人的网络架构搭建。感觉创业公司在办公网络方面还存在着一定这样那样的不足和缺失。正好把经历过的看到过的都写下来 希望能够帮助有需要的朋友。&lt;/p&gt;
+&lt;h2 id="需求"&gt;需求&lt;/h2&gt;
+&lt;p&gt;每个公司可能业务不太一样，但是在办公网络方面的需求大体相同。无非可能就以下几点&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;安全稳定快速的上网和互相传输文件&lt;/li&gt;
+&lt;li&gt;办公室的小机房内部需求&lt;/li&gt;
+&lt;li&gt;打印、NAS等一些办公服务&lt;/li&gt;
+&lt;li&gt;安全方面的一些需求，以及突破安全的一些需求&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;总体其实就这么多，但是这几个概括的需求往往暗藏着各种细节魔鬼。我们一个一个来剖析。&lt;/p&gt;
+&lt;h3 id="接入商选择"&gt;接入商选择&lt;/h3&gt;
+&lt;p&gt;好多办公楼提供的大多数是企业宽带接入，上下行的带宽是对等的。当然如果企业想省钱搞到了民用的宽带接入也是很不错的事情。&lt;/p&gt;
+&lt;p&gt;既然是企业宽带接入，但不代表你就可以跟三大运营商直接签署接入协议。小区物业还有各种方式阻挠宽带运营商的接入，更别说写字楼了，在写字楼里会有各色各样的牛鬼蛇神，把控着这个领域的事情。&lt;/p&gt;
+&lt;p&gt;如果你碰巧，写字楼里有2家以上的接入商，那么建议是，两家都用。这样可以最大程度上保证SLA和比价。当然缺点也是有的，两个带宽如何使用，技术方面倒是需要好好的进行下规划。&lt;/p&gt;
+&lt;p&gt;当然最后，在选择接入商的事情上，还是希望各位能够在选择写字楼的时候就提前问好。毕竟员工上网的幸福指数也是非常重要的。&lt;/p&gt;
+&lt;h3 id="带宽选择"&gt;带宽选择&lt;/h3&gt;
+&lt;p&gt;无论是三大运营商还是各种牛鬼蛇神提供的接入服务。都会牵涉到几个技术点：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;是否有独立的公网IP&lt;/li&gt;
+&lt;li&gt;出口带宽在哪里&lt;/li&gt;
+&lt;li&gt;是否有缓存或者多重NAT&lt;/li&gt;
+&lt;li&gt;接入的路由IP放在哪&lt;/li&gt;
+&lt;li&gt;是否是BGP网络，路由是否可以优化&lt;/li&gt;
+&lt;li&gt;SLA是多少，罚则是什么，除了故障多长时间响应和解决&lt;/li&gt;
+&lt;li&gt;支持几天的测试周期&lt;/li&gt;
+&lt;li&gt;价格账单周期是怎样，是否有返点等&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上每一项都会有背后的逻辑：&lt;/p&gt;
+&lt;p&gt;是否有独立的公网IP：这个建议一定要有1-2个，方便大家使用连回办公室的VPN，或者远程连回办公室进行调试使用。这个在疫情的情况下尤其的重要。而且，独立公网IP对于云上或者其它地方使用防火墙黑白名单也是有这非常重要的作用的。&lt;/p&gt;
+&lt;p&gt;出口带宽在哪里：三大运营商不在这个讨论范围内，说的是那些牛鬼蛇神们。这些接入商往往有着各种稀奇古怪的网络资源，所以即使你在北京，你通过他们提供的带宽也可能会显示河北张家口。原因就是，他们有着一些城域网的资源，但是确没有本地出口的资源。所以就异地的来这么一下，这种行为大多是悄悄的做的，因为有规定，这种倒卖带宽的行为是禁止的。所以，私下里或者问问友商大概的情况，在价格允许的条件下，差不多就行了。毕竟大家也都是要恰饭滴。&lt;/p&gt;
+&lt;p&gt;是否有缓存或者多重NAT：如果说出口带宽的乾坤大挪移还能接受的话，这个行为如果不明示或者说明白了就有点完全不能忍受了。本来小接入商对一些家用的常用影视图片资源做缓存无可厚非（随着个人信息隐私的完善，这种行为好像也是不太光明磊落的了）。但是企业不一样啊，里面牵涉到一些商业机密，鬼知道你把我访问的信息缓存下来用来做什么。所以很多企业在这方面非常的敏感。但不缓存的话，可能网络速度不能达标。所以这个如果非常在意，一定要把握底线。&lt;/p&gt;
+&lt;p&gt;接入的路由IP放在哪：有几种情况，如果你有独立的公网IP，会给你分配4个公网IP，一对互联地址配置到你的路由器上。另一种情况就是，你把路由器的默认路由指向接入商的路由器上。还有PPPoE的形式（多用于上网接入）。这个牵涉到你对路由地址的控制权上，是否可以灵活的把控接入商的各种指向和切换。需要在前期问清楚。&lt;/p&gt;
+&lt;p&gt;是否是BGP网络：一些接入商宣称自己是BGP网络，但是策略路由还是有自己的AS号这个可是两个量级的事情了。所以，BGP平时可能看不出来的优势，但是在出现故障的时候，你会感谢接入商有BGP的。&lt;/p&gt;
+&lt;p&gt;SLA是多少：这个聊胜于无吧，有时候大晚上人家例行维护啥的也不影响业务，也没办法算SLA，如果是两个接入商，&lt;/p&gt;</description></item><item><title>k3s</title><link>https://git.yimeng.ch/post/2022/k3s/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/k3s/</guid><description>&lt;h1 id="k3s学习笔记"&gt;K3S学习笔记&lt;/h1&gt;
+&lt;p&gt;&lt;a href="https://comphilip.wordpress.com/2021/05/30/k3s-thing-better-ipvs-solution/"&gt;https://comphilip.wordpress.com/2021/05/30/k3s-thing-better-ipvs-solution/&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://comphilip.wordpress.com/2021/05/22/k3s-thing-ipvs-failure/"&gt;https://comphilip.wordpress.com/2021/05/22/k3s-thing-ipvs-failure/&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://weinan.io/2020/05/23/k3s.html"&gt;https://weinan.io/2020/05/23/k3s.html&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://www.modb.pro/db/383288"&gt;https://www.modb.pro/db/383288&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://metallb.universe.tf/configuration/k3s/"&gt;https://metallb.universe.tf/configuration/k3s/&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://int32bit.sh/2019/11/28/IPVS"&gt;https://int32bit.sh/2019/11/28/IPVS&lt;/a&gt;从入门到精通kube-proxy实现原理/&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;K3S Master startup command: k3s server --node-external-ip 172.30.80.2 --advertise-address 172.30.81.2 --node-ip 172.30.81.2 --kube-proxy-arg proxy-mode&lt;span style="color:#f92672"&gt;=&lt;/span&gt;ipvs
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;K3S Worker startup command: k3s agent --node-external-ip 172.30.80.3 --node-ip 172.30.81.3 --kube-proxy-arg proxy-mode&lt;span style="color:#f92672"&gt;=&lt;/span&gt;ipvs
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;################### master&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export INSTALL_K3S_CHANNEL&lt;span style="color:#f92672"&gt;=&lt;/span&gt;latest
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export INSTALL_K3S_MIRROR&lt;span style="color:#f92672"&gt;=&lt;/span&gt;cn 
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export LIP&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;100.127.255.135&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export EIP&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;100.127.255.133&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export INSTALL_K3S_EXEC&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;server --tls-san &lt;/span&gt;$LIP&lt;span style="color:#e6db74"&gt; --node-ip &lt;/span&gt;$LIP&lt;span style="color:#e6db74"&gt; --advertise-address &lt;/span&gt;$LIP&lt;span style="color:#e6db74"&gt; --node-external-ip &lt;/span&gt;$EIP&lt;span style="color:#e6db74"&gt; --pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --kube-proxy-arg proxy-mode=ipvs masquerade-all=true --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#export INSTALL_K3S_EXEC=&amp;#34;server --pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;# export INSTALL_K3S_EXEC=&amp;#34;server --tls-san $IP --node-ip $IP --node-external-ip $IP --pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --disable servicelb --kube-proxy-arg proxy-mode=ipvs masquerade-all=true --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;curl -sfL http://rancher-mirror.cnrancher.com/k3s/k3s-install.sh | sh -s -
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;cat /var/lib/rancher/k3s/server/node-token
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;################ agent &lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export LIP&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;100.127.255.136&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export EIP&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;100.127.255.132&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export K3S_TOKEN&lt;span style="color:#f92672"&gt;=&lt;/span&gt;K10a8cec93b8572b2986d8fa0eba6aa3076d91ce19b374714a3e68ec4440a4c280a::server:9d9c38adc6578f7bb72ca372823989fc
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export INSTALL_K3S_CHANNEL&lt;span style="color:#f92672"&gt;=&lt;/span&gt;latest
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export INSTALL_K3S_MIRROR&lt;span style="color:#f92672"&gt;=&lt;/span&gt;cn 
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export K3S_URL&lt;span style="color:#f92672"&gt;=&lt;/span&gt;https://100.127.255.135:6443
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#export INSTALL_K3S_EXEC=&amp;#34;--node-external-ip $IP --pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --kube-proxy-arg proxy-mode=ipvs masquerade-all=true --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export INSTALL_K3S_EXEC&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;--node-ip &lt;/span&gt;$LIP&lt;span style="color:#e6db74"&gt; --node-external-ip &lt;/span&gt;$EIP&lt;span style="color:#e6db74"&gt; --pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --kube-proxy-arg proxy-mode=ipvs masquerade-all=true --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#export INSTALL_K3S_EXEC=&amp;#34;--pause-image registry.cn-beijing.aliyuncs.com/k7scn/pause:3.2 --kube-proxy-arg metrics-bind-address=0.0.0.0&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;curl -sfL http://rancher-mirror.cnrancher.com/k3s/k3s-install.sh | sh -s -
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts1/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts1/</guid><description>&lt;h1 id="家庭电量可观测性背景"&gt;家庭电量可观测性（背景）&lt;/h1&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;2018年的时候在某智能家居论坛看到一句话：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;前一段有个帖子里，说米家智能插座增强版可以看功率，我提到了只看一个插座的功率没太大意义，要看就看整个家庭的用电。说了一句：“家里整体功耗才是王道”引得网友回复……这下好了，自己挖的坑自己得埋！&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;其实当时也沉浸在米家智能插座看功率的阶段，对于这句话颇有不服，但看在作者自己已经动手做出来的基础上。感觉，似乎自己也能试试看？或者能从另一个新的视角发现点什么呢？&lt;/p&gt;
+&lt;p&gt;说做就做，但 纸上得来终觉浅 绝知此事要躬行。真的把那个帖子看完，发现要干成这件事还需要以下几个条件：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;智能家居玩家：有较强的兴趣爱好去折腾，不然中间遇到一些困难很可能就浅尝辄止了。况且这种改造还伴随着一些”风险“。&lt;/li&gt;
+&lt;li&gt;有一些电力方面的知识：要对自己家的电路有所了解，知道空开和漏保，以及电线平方数和电流的关系。不然改造起来是很危险的。&lt;/li&gt;
+&lt;li&gt;一些物联网方面的知识：因为获取电能表并不是我们的家用电器，还需要一些工业协议去获取，获取的时候还需要一些物联网编程吗的知识，比如modbus协议，比特率，CRC校验码等。&lt;/li&gt;
+&lt;li&gt;一些编程和网络方面的知识：最后，还需要一些高级语言编程以及监控（可观测性）方面的知识。而且只会编程可能还不够，还要从可维护性、便利性、可靠性、经济性等等去选择你的最终技术实现。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;说实话，做之前感觉一件很简单的事情，真的去做的时候才发现，原来需要考虑的真的还不少。不过饭要一口一口的吃，遇到什么就解决什么就好了。前前后后折腾了3-6个月，包括硬件选型、一些奇怪的知识的查漏补缺等等。咨询了各种搞IoT的小伙伴，以及获得了各种他们各种有经验的调试方法。因此这个文章可能要分为背景、方案、硬件、软件来写了。最初版是2019年写完，但只单纯的介绍实现方式，没有对心路历程进行描述。虽然时隔久远，有些细节已经不太记得。但是还是希望好好记录下这个过程。顺道在最后贡献个PR稿：）&lt;/p&gt;
+&lt;h2 id="方案"&gt;方案&lt;/h2&gt;
+&lt;p&gt;背景介绍完了，终于可以开始介绍方案（纠结历程）了。&lt;/p&gt;
+&lt;h3 id="协议"&gt;协议&lt;/h3&gt;
+&lt;p&gt;modbus：只要跟一些工控设备打交道 基本上绕不过去的一个协议，说白了就是如何跟工控设备打交道。&lt;/p&gt;
+&lt;p&gt;MQTT：如果要把IoT接入某些大的平台，就需要这种IoT专有协议去跟云打交道。粗略的看了下，除了报文的标准，其它部分感觉有点类似于消息队列。&lt;/p&gt;
+&lt;p&gt;TCP：这个就是大家正常使用的，但是对于设备要求最好是性能比较好的。因为实现TCP甚至HTTP序列化还是需要一定的计算能力的。&lt;/p&gt;
+&lt;p&gt;最后，既然绕不开modbus，就找了一个TCP&amp;lt;=&amp;gt;modbus的转换器。而MQTT，可能在以后直接接入云平台的时候会进行选择。&lt;/p&gt;
+&lt;h3 id="硬件"&gt;硬件&lt;/h3&gt;
+&lt;h4 id="自己diy"&gt;自己DIY&lt;/h4&gt;
+&lt;p&gt;根据论坛里老哥的介绍需要准备&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;培正检测模块&lt;strong&gt;PZEM-004T&lt;/strong&gt; ：这个用于检测电流电压等参数，需要接到强电电路里，然后通过TTL输出。&lt;/li&gt;
+&lt;li&gt;220v交流转5v直流模块：通过把220v转成5v，给esp供电使用。&lt;/li&gt;
+&lt;li&gt;esp-01模块：灵魂人物，通过TTL取数据，再通过esp的能力上传到各种数据库。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;其实那位老哥以前就有一个成品商业的modbus检测的，只是自己想DIY把控自己的数据下。但其实看下来还是需要很多的知识储备的。但这个方案也是最便宜的。几个模块和成品比起来能便宜一半以上的钱，总成本可以控制在100以内（刨除人的时间成本）。&lt;/p&gt;
+&lt;h4 id="买成品"&gt;买成品&lt;/h4&gt;
+&lt;p&gt;说实话，我对于TTL了解不多，而且esp这个神器也没有怎么玩过。所以开始自己的选型，并且根据自己家里的情况定了几个原则：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;电表箱太小 体积一定要小&lt;/li&gt;
+&lt;li&gt;强电箱里东西越少越好&lt;/li&gt;
+&lt;li&gt;协议要通用 最好是可扩展性较强的协议&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;因此&lt;/p&gt;
+&lt;p&gt;检测模块选了一个单火线，并且只有1P的 DDS5188-1P&lt;/p&gt;
+&lt;p&gt;转换模块选了一个微型的HF7121 通过5V供电并且支持RJ45。（这个供电电复用的RJ45其中的两根线）如果要支持更多协议或者不想编程太多的话，可以选择ZLAN5144J这种的，就是体积有点过大，并且价格也很美丽了。&lt;/p&gt;
+&lt;p&gt;至此 当硬件和相关的协议都确认了下来之后，就开始折腾之路了。最终的大体的架构如下。&lt;/p&gt;
+&lt;p&gt;第一篇就是本篇会讲讲背景介绍。&lt;/p&gt;
+&lt;p&gt;第二篇会开始讲物理上的连接情况。&lt;/p&gt;
+&lt;p&gt;第三篇会讲下软件的情况。&lt;/p&gt;
+&lt;p&gt;第四篇会进行下总结和以后的展望。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220519112724354.png" alt="image-20220519112724354"&gt;&lt;/p&gt;</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts2/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts2/</guid><description>&lt;h1 id="家庭电量可观测性硬件篇"&gt;家庭电量可观测性（硬件篇）&lt;/h1&gt;
+&lt;h2 id="硬件选择"&gt;硬件选择&lt;/h2&gt;
+&lt;p&gt;上一篇说完硬件的选择原则，这篇就开始说说硬件之间的连接部分。&lt;/p&gt;
+&lt;p&gt;其实说白了就是下图中的蓝色部分，而蓝色部分最重要的两个就是电能表和协议转换器了。&lt;/p&gt;
+&lt;p&gt;电能表&lt;/p&gt;
+&lt;p&gt;协议转换器&lt;/p&gt;
+&lt;h2 id="总体架构"&gt;总体架构&lt;/h2&gt;
+&lt;!-- raw HTML omitted --&gt;
+&lt;h2 id="连接方式"&gt;连接方式&lt;/h2&gt;
+&lt;h3 id="电能表与空开"&gt;电能表与空开&lt;/h3&gt;
+&lt;p&gt;先说电表，大概是这个样子的。把电量表接到了空开的前面是因为，外面还有一个电表和空开。这样即使我家跳闸断电，只要外面的空开没有断。电能表还是可以工作的，配合检测端的UPS，是可以作为停电监测用的。（全停电冰箱里的肉杀伤力极强，别问我怎么知道的）&lt;/p&gt;
+&lt;!-- raw HTML omitted --&gt;
+&lt;h3 id="转换器供电连接"&gt;转换器供电连接&lt;/h3&gt;
+&lt;p&gt;然后再说RS486和供电部分，这个转换器端用RJ45网口接入，通过他配的线集成了RS485+供电/网线的功能。&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://img.alicdn.com/imgextra/i3/702772642/O1CN01Lxus5h1VO4yk2qRl9_!!702772642.jpg" alt="img"&gt;&lt;/p&gt;
+&lt;p&gt;可以看到供电部分使用2和3针脚。找了一根没用的USB线，把其中的1,4针脚接出来。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220519140619019.png" alt="image-20220519140619019"&gt;&lt;/p&gt;
+&lt;p&gt;光猫的USB1,4针脚，接入转换器的2,3针脚。完成供电。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220519140710009.png" alt="image-20220519140710009"&gt;&lt;/p&gt;
+&lt;h3 id="转换器的数据连接"&gt;转换器的数据连接&lt;/h3&gt;
+&lt;p&gt;转换器的1,4针脚，接入电能表的数据AB接口，完成数据的接入。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220519141228880.png" alt="image-20220519141228880"&gt;&lt;/p&gt;
+&lt;p&gt;转换器与电脑之前的网线连接：&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/ammeter.png" alt="img"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220519141800455.png" alt="image-20220519141800455"&gt;&lt;/p&gt;
+&lt;h3 id="电脑访问转换器页面"&gt;电脑访问转换器页面&lt;/h3&gt;
+&lt;p&gt;剩下就是很简单的插上网线，转换器会获取到DHCP地址。通过web页面进行访问即可。剩下的就是如何通过软件来获取信息了。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220519141335968.png" alt="image-20220519141335968"&gt;&lt;/p&gt;
+&lt;h2 id="后记"&gt;后记&lt;/h2&gt;
+&lt;p&gt;这部分最重要的要就是安全，因为牵涉到强电改造。一定不要在带电的情况下操作。还有就是注意好正负极，防止短路。&lt;/p&gt;
+&lt;p&gt;数据连接部分主要注意，线一定要弄牢。485的线没有任何提示你是否已经牢固，是否有松动的情况。这种情况最不好排查了。也是玩硬件里最头疼的一部分。毕竟不像网线那样不牢固会丢包，会降速，能从指示灯上看到。&lt;/p&gt;
+&lt;p&gt;还有一点就是 提前规划好连接，做好一些准备。比如我这个电量表买回来，才发现火线的供电确实有了。但是忘记还要有个零线才能用，所以就稍微飞了一根零线回程。还好不耽误用，但是如果是其它不能改造的地方就比较尴尬了。&lt;/p&gt;</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts3/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts3/</guid><description>&lt;h1 id="家庭电量可观测性软件篇"&gt;家庭电量可观测性（软件篇）&lt;/h1&gt;
+&lt;h2 id="整体架构"&gt;整体架构&lt;/h2&gt;
+&lt;p&gt;软件部分总体架构图如图绿色部分，主要分为采集、数据处理、存储和展现。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220524140809738.png" alt="image-20220524140809738"&gt;&lt;/p&gt;
+&lt;h2 id="采集"&gt;采集&lt;/h2&gt;
+&lt;p&gt;做了这么长时间的运维监控，prometheus已经当然不让的成了一个既定事实的标准。（为以前的nagios感到有点惋惜），所以采集端自然而然的使用prometheus的exporter的标准。通过golang自己写一个exporter，每次调用exporter的时候，这个exporter通过tcp去转换器那里获取数据。这样可以适合大多数拥抱开源的各种生态。如果实在遇到不支持的，数据转换的成本也不高。不得不说，现在真是一个生态和标准先行的时代啊。这个采集的程序已经放到了github上，有需要的可以自取。https://github.com/yimeng/eport 里面没有什么注释只能各位自己看了，尤其是二进制的那部分，可能需要根据自己的实际情况进行修改。&lt;/p&gt;
+&lt;h2 id="处理"&gt;处理&lt;/h2&gt;
+&lt;p&gt;这块其实没有什么处理的逻辑，只是把数据读取出来，在展现的时候进行了一个电量的计算，其实完全可以在这部分进行个预处理。把电流电压直接处理成电量。用前期的计算能力换取后期的查询压力。&lt;/p&gt;
+&lt;h2 id="存储"&gt;存储&lt;/h2&gt;
+&lt;p&gt;本着能用托管尽量别自建的原则，选取了观测云与Grafana Cloud。&lt;/p&gt;
+&lt;p&gt;观测云的免费额度深得我心。再加上手机端的加持。完全可以承担这部分的职责。只是后期发现存储只能存储7天。对于想对全年进行一个统计的需求略显不足。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;观测云&lt;/p&gt;
+&lt;p&gt;每天 8,000 个 Trace 数量&lt;/p&gt;
+&lt;p&gt;每天 10 万次任务调用&lt;/p&gt;
+&lt;p&gt;DataKit不限量（3,000条时间线）&lt;/p&gt;
+&lt;p&gt;每天 2,000 个 PV 数量&lt;/p&gt;
+&lt;p&gt;数据保留 7 天&lt;/p&gt;
+&lt;p&gt;每天 100 万条日志类数据&lt;/p&gt;
+&lt;p&gt;每天 20 万次 API 拨测&lt;/p&gt;
+&lt;p&gt;钉钉 / 微信官方服务群&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;grafana的托管的免费额度也是非常给力的&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Grafana Cloud&lt;/p&gt;
+&lt;p&gt;10,000 时间线&lt;/p&gt;
+&lt;p&gt;保存 14天&lt;/p&gt;
+&lt;p&gt;50GB的日志存储&lt;/p&gt;
+&lt;p&gt;50GB的调用链存储&lt;/p&gt;
+&lt;p&gt;3个团队账号&lt;/p&gt;
+&lt;p&gt;grafana面板免费使用&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;对于这两家的免费额度 还是非常有好感的。虽然两家都不太能满足长时间统计分析的需求。但这也无可厚非。毕竟那个需求属于数据范畴了，跟可观测性关系不大。至于其它公有云的可观测性吗，不是我等穷人可以用得起的。&lt;/p&gt;
+&lt;p&gt;至于，那个分析统计的需求，架构图上还是自己搭建了一个prometheus和grafana的，毕竟自建在某些时候成本还是趋于边际效益递减的。&lt;/p&gt;
+&lt;h2 id="展现"&gt;展现&lt;/h2&gt;
+&lt;p&gt;展现这里先用了观测云的面板，因为grafana的面板有点小复杂，需要慢慢的熟悉，毕竟不是当时只支持一两种数据源的grafana了。&lt;/p&gt;
+&lt;p&gt;关于展现，这个是最终版。数据其实就电流电压和功率，其中功率也是可以通过电流电压计算得到的。但是这里却可以演化出来很多可观测数据。例如每日用电量（看每天花了多少钱），功率变化率（是不是有大用电器开了），没实现的还有根据阶梯电价计算电费、通过功率变化情况分析哪种电器开启了，预测第二天的电费、合理用电提醒等等。虽然指标只有两个有效的，但是想象的空间却是无限的。限制我们的应该只有时间成本和工具的熟悉和功能成本了。&lt;/p&gt;
+&lt;p&gt;展现方面，由于一屏只能加限定的元素进来，因此限制了一些的发挥。例如：包括把每日电费做成基于时间日期的热力图，然后可以进行下钻。显而易见的看到每天（白天、夜晚）的最大功率最小功率的发生时刻和数值。结合地理位置比较碳排放。结合家里的户型图做功率展现等等。当然这不是homeassistant 的可观测性，无法做到深入场景的尽善尽美，达到一个“小满”的状态已经很不错了。&lt;/p&gt;
+&lt;p&gt;关于展现可能还可以再说很多很多，比如是用纯数字展现还是仪表盘展现，折线图还需要哪些优化更好一些，甚至以前还跟同事讨论，为何监控都是黑色背景的（看起来酷 对于值夜班盯监控的人友好）等等。等有机会再说吧。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/image-20220524143237430.png" alt="image-20220524143237430"&gt;&lt;/p&gt;</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/metts4/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/metts4/</guid><description>&lt;h1 id="家庭电量可观测性展望篇"&gt;家庭电量可观测性（展望篇）&lt;/h1&gt;
+&lt;h2 id="总结"&gt;总结&lt;/h2&gt;
+&lt;p&gt;说是展望，其实更像一个总结。跟很多获奖感言一样先是感谢篇（排名不分先后）。&lt;/p&gt;
+&lt;h2 id="感谢"&gt;感谢&lt;/h2&gt;
+&lt;p&gt;感谢瀚思彼岸论坛上2018年底的一篇&lt;a href="https://bbs.hassbian.com/thread-5634-1-1.html"&gt;[开关插座] 家庭总体能耗电压电流功率用电度数检测，进阶Grafana应用&lt;/a&gt;帖子，特别是其中的一句话&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;前一段有个帖子里，说米家智能插座增强版可以看功率，我提到了只看一个插座的功率没太大意义，要看就看整个家庭的用电。说了一句：“家里整体功耗才是王道”引得网友回复&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;让我从沉醉于米家智能插座看功率的兴奋中清醒过来，投入了难度系数更高的全屋电量监控。&lt;/p&gt;
+&lt;p&gt;感谢在龙湖一群玩IoT的小伙伴的大力支持，他们对于硬件方面的知识确实让我看到了，搞IoT的各种不易，实际落地完完全玩不是PPT里的一句话的事情。牵涉到硬件就会有无数细节上的魔鬼等着你。&lt;/p&gt;
+&lt;p&gt;感谢观测云让我把这个落灰3年多的可观测性又捡了起来，重新写了一篇洋洋洒洒的记录。还好当时写的程序和电路都还正常， 只花了一两个小时就重新再次上线了，大部分的时间其实花在了把已经打包好的iMac重新启动起来，找到当年自己写的程序的过程上。也多亏了观测云接入的便利性和免费白嫖的额度。可以让我用手机随时随地的看家里的用电情况和设置告警了。&lt;/p&gt;
+&lt;p&gt;感谢媳妇在我各种停电的情况下，帮我举着螺丝刀手电筒跟我一起瞎搞。当时两个人还好，现在有了娃就不敢这么瞎玩了。或许等娃长大以后可以带着他一起玩。跟我小时候用电笔把家里的电搞短路一样。那个小伙子没有点童年呢。&lt;/p&gt;
+&lt;p&gt;感谢我自己的这种爱好，让我锲而不舍的能把现在想想都望而却步的事情做到了一个“小满”的状态，虽然有很多需要改进的地方。但生命在于折腾这个事，估计会一直伴随着我，哪个男人没点自己的小嗜好呢。&lt;/p&gt;
+&lt;h2 id="展望"&gt;展望&lt;/h2&gt;
+&lt;p&gt;好吧 说完感谢的话，就开始说展望吧。其实做全屋的智能是一直以来的梦想。讲个笑话：&lt;/p&gt;
+&lt;p&gt;以前租房子的时候，我的床就在窗户旁边，窗外有很高的梧桐树，窗户下面是白俄罗斯大使馆的门口，非常安静。多次想如果每天早上叫醒我的如果是窗帘自动打开，透进来的光线该多好。然后去寻找电机，皮带等原材料。想自己做一个。从修车的堂弟那里搞到了汽车电动门的电机。去跟一个师弟探讨皮带传送的知识。然后最后的最后，买了一个10块钱的晾衣杆放到床边解决问题了。虽说解决不了通过光线自动叫我起床的目的，但是打开窗帘是足够了。&lt;/p&gt;
+&lt;p&gt;这个故事告诉我们，智能家居还是搞成本的好，一些改造成本有时候不是我们这种普通人可以承受的。当然随着折腾能力的不断上升，这个应该不是什么问题了。但一开始还是建议大家买成品折腾比较好。&lt;/p&gt;
+&lt;p&gt;说是对于这个“作品”的展望，不如说是对于之后的智能家居的展望。&lt;/p&gt;
+&lt;h3 id="插座开关"&gt;插座开关&lt;/h3&gt;
+&lt;p&gt;大概是应该会把所有的插座和开关都接入只能解决。当然成本问题也是不容忽视的。特别是插座。可能会吧一些固定的功耗大插座比如空调，电冰箱等换成智能的。其它的还是使用传统的。开关方面已经开始变成智能的了。家里面积并不大，这个成本还是可以承受的。&lt;/p&gt;
+&lt;h3 id="摄像头"&gt;摄像头&lt;/h3&gt;
+&lt;p&gt;家庭入户门和前后阳台需要有三个摄像头，这样快递放到门口就不用太担心什么了。南阳台的摄像头主要用来看楼下的停车场是否有空位，如果能加上AI就更好了。北阳台主要看进单元门的人员和家门口的配合使用。&lt;/p&gt;</description></item><item><title>家庭电量可观测性</title><link>https://git.yimeng.ch/post/2022/proxmox-lxc/</link><pubDate>Tue, 03 May 2022 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2022/proxmox-lxc/</guid><description>&lt;h1 id="proxmox-lxc"&gt;proxmox-lxc&lt;/h1&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;h2 id="方案"&gt;方案&lt;/h2&gt;
+&lt;h3 id="clone"&gt;clone&lt;/h3&gt;
+&lt;h3 id="原生"&gt;原生&lt;/h3&gt;
+&lt;h3 id="自己制作"&gt;自己制作&lt;/h3&gt;
+&lt;p&gt;Create lxc template with proxmox&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 1&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Download the LXC/openVZ template
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 2&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Create an LXC container with this template
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 3&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Boot the container
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 4&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Enter the container via console &lt;span style="color:#f92672"&gt;(&lt;/span&gt;pct enter &amp;lt;id&amp;gt;&lt;span style="color:#f92672"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 5&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Install / modifY anything you want
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 6&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Remove the network configuration from the network interface
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 7&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Shutdown the container
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 8&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Make a backup with vzdump and &lt;span style="color:#66d9ef"&gt;select&lt;/span&gt; tar.gz as extension
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 9&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Move and rename your xyz.tar.gz to /var/lib/vz/template/cache/template-version.tar.gz
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;Step 10&lt;span style="color:#f92672"&gt;)&lt;/span&gt; Use your new template on new containers
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Step 8&amp;amp;9&lt;/p&gt;</description></item><item><title>通用信息模型</title><link>https://git.yimeng.ch/post/2021/dmtf-cim/</link><pubDate>Sun, 19 Sep 2021 09:23:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/dmtf-cim/</guid><description>&lt;h1 id="关于-dmtf"&gt;关于 Dmtf&lt;/h1&gt;
+&lt;p&gt;DMTF（以前称为分布式管理任务组）创建开放可管理性标准，涵盖各种新兴和传统的 IT 基础架构，包括云、虚拟化、网络、服务器和存储。 全球成员公司和联盟合作伙伴在标准上进行合作，以改善信息技术的可互操作管理。&lt;/p&gt;
+&lt;p&gt;DMTF 标准在 ANSI 和 ISO 的国家和国际认可下，通过可互操作的解决方案，能够采用更集成、更具成本效益的管理方法。 DMTF 能够同时开发开源和开放标准，它拥有高效开发和协作所需的支持、工具和基础架构。&lt;/p&gt;
+&lt;p&gt;DMTF 是一个 501（c）（6） 标准组织，由 Broadcom Inc. 的多元化董事会领导; 思科;戴尔技术;惠普企业：英特尔公司;联想：网应用程序;波西蒂沃·特克诺洛吉亚和威瑞森&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;最新标准&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;CADF&lt;/strong&gt; - 云审计数据联合会&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;CIMI&lt;/strong&gt; - 云基础设施管理接口&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;CIM&lt;/strong&gt; - 常见信息模型&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;DASH&lt;/strong&gt; - 系统硬件的桌面和移动架构&lt;/li&gt;
+&lt;li&gt;MCTP - 管理组件运输协议
+&lt;ul&gt;
+&lt;li&gt;包括NVME-MI™、I2C/SMBus和PCIE®绑定&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;NC-SI&lt;/strong&gt; - 网络控制器侧带接口&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;OVF&lt;/strong&gt; - 开放虚拟化格式&lt;/li&gt;
+&lt;li&gt;PLDM - 平台级数据模型
+&lt;ul&gt;
+&lt;li&gt;包括固件更新、红鱼设备启用 （RDE）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;红鱼®
+&lt;ul&gt;
+&lt;li&gt;包括协议、Schema、主机接口、配置文件&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SMASH&lt;/strong&gt; - 服务器硬件的系统管理架构&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SMBIOS&lt;/strong&gt; - 系统管理生物&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SPDM&lt;/strong&gt; - 安全协议和数据模型&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>基础设施既代码-读书笔记</title><link>https://git.yimeng.ch/post/2021/iac/</link><pubDate>Sat, 04 Sep 2021 12:10:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/iac/</guid><description>&lt;h1 id="基础设施即代码-读书笔记"&gt;基础设施即代码-读书笔记&lt;/h1&gt;
+&lt;h1 id="读书人自己的前言"&gt;读书人自己的前言&lt;/h1&gt;
+&lt;p&gt;其实k8s也是一种基础设施既代码的实现，其中很多理念IaC是相同的。只不过IaC中并没有调度。&lt;/p&gt;
+&lt;h2 id="第一部分基础"&gt;第一部分　基础&lt;/h2&gt;
+&lt;h3 id="第1章挑战与原则"&gt;第1章　挑战与原则&lt;/h3&gt;
+&lt;h4 id="11为什么采用基础设施即代码"&gt;1.1　为什么采用基础设施即代码&lt;/h4&gt;
+&lt;p&gt;在云和自动化的时代还维持着传统IT的管理模式，比如创建机器，删除机器，扩容机器。云的一些特性并没有发挥出来，而且不关注一致性和可靠性，导致越管越乱。系统与硬件解耦后，可以更方便的定义基础设施环境。&lt;/p&gt;
+&lt;h4 id="12什么是基础设施即代码"&gt;1.2　什么是基础设施即代码&lt;/h4&gt;
+&lt;p&gt;基于软件开发实践的基础设施自动化的方法。具有一致性和可重复性。有自己的代码仓库、自动化测试、测试驱动开发、持续集成、持续交付。&lt;/p&gt;
+&lt;p&gt;目标：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;IT基础设施允许变更，而不是成为阻碍&lt;/li&gt;
+&lt;li&gt;消除对基础设施变更的恐惧&lt;/li&gt;
+&lt;li&gt;IT人员不应该把时间精力花费重复的创建机器上&lt;/li&gt;
+&lt;li&gt;用户可以自定义自己的环境，不需要IT人员的参与&lt;/li&gt;
+&lt;li&gt;团队应该可以快速的恢复环境，而不是害怕环境变更影响业务&lt;/li&gt;
+&lt;li&gt;持续小批量的修改，而不是上线前的集中创建&lt;/li&gt;
+&lt;li&gt;不要在会议上讨论变更，而是应该去不断的测试生成的环境。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="13动态基础设施的挑战"&gt;1.3　动态基础设施的挑战&lt;/h4&gt;
+&lt;h5 id="131服务器蔓延"&gt;1.3.1　服务器蔓延&lt;/h5&gt;
+&lt;p&gt;创建机器太容易了，迅速的扩张。超过所能控制和管理的规模。&lt;/p&gt;
+&lt;h5 id="132配置漂移"&gt;1.3.2　配置漂移&lt;/h5&gt;
+&lt;p&gt;同样的业务，跑着不同样的应用配置。随着时间增加 差异也不断的增加。&lt;/p&gt;
+&lt;h5 id="133雪花服务器"&gt;1.3.3　雪花服务器&lt;/h5&gt;
+&lt;p&gt;雪花服务器和其它机器配置不一样，且不能够被重新复制一套。&lt;/p&gt;
+&lt;h5 id="134脆弱的基础设施"&gt;1.3.4　脆弱的基础设施&lt;/h5&gt;
+&lt;p&gt;谁都不敢碰那台雪花服务器。&lt;/p&gt;
+&lt;h5 id="135自动化恐惧症"&gt;1.3.5　自动化恐惧症&lt;/h5&gt;
+&lt;p&gt;使用配置管理工具，但不是自动化的使用。对自动化缺乏信心。&lt;/p&gt;
+&lt;h5 id="136侵蚀"&gt;1.3.6　侵蚀&lt;/h5&gt;
+&lt;p&gt;操作系统升级和硬件损坏等异常条件，会打破并且侵蚀系统的一致性。&lt;/p&gt;
+&lt;h4 id="14基础设施即代码的原则"&gt;1.4　基础设施即代码的原则&lt;/h4&gt;
+&lt;h5 id="141系统能够轻松复制"&gt;1.4.1　系统能够轻松复制&lt;/h5&gt;
+&lt;h5 id="142系统是用完可扔的"&gt;1.4.2　系统是用完可扔的&lt;/h5&gt;
+&lt;p&gt;运行在不可靠的硬件资源上，应该按照牲口的管理方式去管理，而不是宠物的管理方式。&lt;/p&gt;
+&lt;h5 id="143系统是一致的"&gt;1.4.3　系统是一致的&lt;/h5&gt;
+&lt;p&gt;目录结构、各个组件的版本都应该是一致的。&lt;/p&gt;
+&lt;h5 id="144过程是可重复的"&gt;1.4.4　过程是可重复的&lt;/h5&gt;
+&lt;p&gt;每个系统管理员应该使用相同的脚本去初始化机器，保持每次创建的机器的过程都是一致的。&lt;/p&gt;
+&lt;h5 id="145设计经常变更"&gt;1.4.5　设计经常变更&lt;/h5&gt;
+&lt;h4 id="15实践"&gt;1.5　实践&lt;/h4&gt;
+&lt;h5 id="151使用定义文件"&gt;1.5.1　使用定义文件&lt;/h5&gt;
+&lt;p&gt;使用DSL定义基础设施&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;目前这种方式有改变的趋势，变为使用代码定义。DSL的方式不太灵活。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h5 id="152自文档化的系统和流程"&gt;1.5.2　自文档化的系统和流程&lt;/h5&gt;
+&lt;p&gt;DSL语言就是文档&lt;/p&gt;
+&lt;h5 id="153一切版本化"&gt;1.5.3　一切版本化&lt;/h5&gt;
+&lt;ul&gt;
+&lt;li&gt;可追述&lt;/li&gt;
+&lt;li&gt;回滚&lt;/li&gt;
+&lt;li&gt;相关性&lt;/li&gt;
+&lt;li&gt;可见性&lt;/li&gt;
+&lt;li&gt;可执行&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h5 id="154持续测试系统和流程"&gt;1.5.4　持续测试系统和流程&lt;/h5&gt;
+&lt;p&gt;更好的借助DevOps的能力&lt;/p&gt;</description></item><item><title>20210904流水账</title><link>https://git.yimeng.ch/post/2021/20210904/</link><pubDate>Sat, 04 Sep 2021 10:42:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/20210904/</guid><description>&lt;h1 id="第一篇流水账"&gt;第一篇流水账&lt;/h1&gt;
+&lt;h2 id="开始"&gt;开始&lt;/h2&gt;
+&lt;p&gt;溜达轨迹：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;技术设施即代码&lt;/li&gt;
+&lt;li&gt;技术雷达&lt;/li&gt;
+&lt;li&gt;thoughtworks 基于开源工具的人生管理 &lt;a href="https://insights.thoughtworks.cn/life-management-based-on-open-source/"&gt;https://insights.thoughtworks.cn/life-management-based-on-open-source/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Logseq 制定个人ORK&lt;/li&gt;
+&lt;li&gt;技术雷达 backstage 构建基础设施平台&lt;/li&gt;
+&lt;li&gt;网页时光机 &lt;a href="https://archive.org/web/"&gt;https://archive.org/web/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;GTD 为什么一般人坚持不下来 &lt;a href="https://www.zhihu.com/question/24287111/answer/30106040"&gt;https://www.zhihu.com/question/24287111/answer/30106040&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;画技术图时的配色 &lt;a href="https://coolors.co/palettes/trending"&gt;https://coolors.co/palettes/trending&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;技术文章配图指南 &lt;a href="https://draveness.me/sketch-and-sketch/"&gt;https://draveness.me/sketch-and-sketch/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;找到最重要的事 &lt;a href="https://mp.weixin.qq.com/s/1T8r7HIX8NAQqUowFOV0rg"&gt;https://mp.weixin.qq.com/s/1T8r7HIX8NAQqUowFOV0rg&lt;/a&gt; 个人OKR&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://www.bmpi.dev/self/okr-gtd-note-logseq/"&gt;OKR + GTD + Note =&amp;gt; Logseq&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/sparanoid/chinese-copywriting-guidelines"&gt;中文文案排版指北&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://www.jdon.com/56252"&gt;Spotify模型：什么是面向运维基础设施的开发者门户Backstage？ - redmonk&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://backstage.io/blog/2020/10/22/cost-insights-plugin"&gt;Spotify开放了Cost Cost Insights开源项目&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://files.thoughtworks.com/pdfs/Morden_Enterprise_Architecture_Framework_Whitepaper_CN.pdf"&gt;现代企业架构白皮书-数字化转型底层方法论&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://draveness.me/golang/"&gt;Go 语言设计与实现&lt;/a&gt; 11:04&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;我在干嘛？不是要看基础设施既代码的方面的吗，为啥走了这么远？看来以后要先列大纲了。不过应该也没有太白费，好歹可以制定下自己的OKR，虽说没有企业里面的使命愿景战略那么高大上，但也好歹有个思路了。&lt;/p&gt;
+&lt;p&gt;往上关注运维领域的发展方向，往下积累各种客户的运维需求。&lt;/p&gt;
+&lt;p&gt;往上写写系列的文章，例如基础设施即代码系列&lt;/p&gt;
+&lt;p&gt;往下写写各种妖魔鬼怪的甲方的各种需求以及友商的各种产品&lt;/p&gt;
+&lt;p&gt;第一步先把基础设施即代码这个坑填上，偶尔穿插下接地气的客户需求。下面定几个K吧&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;基础设施即代码 读书笔记&lt;/li&gt;
+&lt;li&gt;研究下技术雷达里的基础设施即代码的内容（小心走偏）&lt;/li&gt;
+&lt;li&gt;YouTube上关于IaC的内容看看&lt;/li&gt;
+&lt;li&gt;写一下自己基于Homelab的IaC的实践&lt;/li&gt;
+&lt;li&gt;做几期分享？&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>pulumi-quickstart</title><link>https://git.yimeng.ch/post/2021/pulumi-quickstart/</link><pubDate>Sat, 04 Sep 2021 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/pulumi-quickstart/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;基础设施即代码的当红小生，大有把大哥terraform比下去的趋势。有评价说terraform是配置文件即代码，而pulumi才是真正的基础设施既代码。说白了就是terraform被人诟病的HCL语言过于“刻板”，甚至有点当年&lt;a href="https://puppet.com/docs/puppet/7/puppet_language.html"&gt;puppet那有一定入门门槛的语言一样&lt;/a&gt;。所以喜欢自由的devops们都对于pulumi的门下，甚至&lt;a href="https://www.thoughtworks.com/zh-cn/radar/platforms/pulumi"&gt;thoughtworks技术雷达里在2021年10月将等级从评估提到了实验级别&lt;/a&gt;。 所以借着研究基础设施既代码的机会，研究下这位当红小生吧。&lt;/p&gt;
+&lt;h2 id="结论"&gt;结论&lt;/h2&gt;
+&lt;p&gt;把结论放到这里各位可以各取所需，不太适合的就可以不看下面的详细过程了&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;小众Provider需要时间和经历尝试，如果只是像proxmox这样自己玩玩homelab的，平时创建个机器啥的。ansible和terraform都可以满足你的需要。不一定非要用pulumi。&lt;/li&gt;
+&lt;li&gt;尽量用python，调试资料啥的都好找一些。尝试了下golang，有点小放弃。主要是用的人不太多。而且编译成一个文件执行的机会可能也不大。大多数时候还是shell+bin。当然这个依据你的技术栈而定。&lt;/li&gt;
+&lt;li&gt;可以用用它的k8s模块，目前还没有尝试。不过k8s的yml确实跟terraform puppet这些前辈们有一拼。不知道这个效果如何。&lt;/li&gt;
+&lt;li&gt;最后总结下：如果terraform能满足你的需要，用着吧。如果有一些实在不能满足需要的，再来看看pulumi。或许有惊喜。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="过程"&gt;过程&lt;/h2&gt;
+&lt;h3 id="阿里云"&gt;阿里云&lt;/h3&gt;
+&lt;h4 id="环境准备"&gt;环境准备&lt;/h4&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export ALICLOUD_ACCESS_KEY&lt;span style="color:#f92672"&gt;=&lt;/span&gt;xxxxx
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export ALICLOUD_SECRET_KEY&lt;span style="color:#f92672"&gt;=&lt;/span&gt;xxxxxx
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;mkdir quickstart &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt; cd quickstart
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;pulumi new python --force
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;source venv/bin/activate
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="mainpy"&gt;main.py&lt;/h4&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-python" data-lang="python"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;&amp;#34;&amp;#34;A Python Pulumi program&amp;#34;&amp;#34;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; pulumi
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; pulumi_alicloud &lt;span style="color:#66d9ef"&gt;as&lt;/span&gt; alicloud
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;vpc &lt;span style="color:#f92672"&gt;=&lt;/span&gt; alicloud&lt;span style="color:#f92672"&gt;.&lt;/span&gt;vpc&lt;span style="color:#f92672"&gt;.&lt;/span&gt;Network(&lt;span style="color:#e6db74"&gt;&amp;#34;my-vpc&amp;#34;&lt;/span&gt;,cidr_block&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;172.16.0.0/12&amp;#34;&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;az &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;cn-beijing-c&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;sg &lt;span style="color:#f92672"&gt;=&lt;/span&gt; alicloud&lt;span style="color:#f92672"&gt;.&lt;/span&gt;ecs&lt;span style="color:#f92672"&gt;.&lt;/span&gt;SecurityGroup(&lt;span style="color:#e6db74"&gt;&amp;#34;pulumi_sg&amp;#34;&lt;/span&gt;,description&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;pulumi security_groups&amp;#34;&lt;/span&gt;,vpc_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;vpc&lt;span style="color:#f92672"&gt;.&lt;/span&gt;id)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;vswitch &lt;span style="color:#f92672"&gt;=&lt;/span&gt; alicloud&lt;span style="color:#f92672"&gt;.&lt;/span&gt;vpc&lt;span style="color:#f92672"&gt;.&lt;/span&gt;Switch(&lt;span style="color:#e6db74"&gt;&amp;#34;pulumi_vswitch&amp;#34;&lt;/span&gt;,zone_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;az,cidr_block&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;172.16.0.0/21&amp;#34;&lt;/span&gt;,vpc_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;vpc&lt;span style="color:#f92672"&gt;.&lt;/span&gt;id)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;sg_ids&lt;span style="color:#f92672"&gt;=&lt;/span&gt; [sg&lt;span style="color:#f92672"&gt;.&lt;/span&gt;id]
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;sg_rule&lt;span style="color:#f92672"&gt;=&lt;/span&gt; alicloud&lt;span style="color:#f92672"&gt;.&lt;/span&gt;ecs&lt;span style="color:#f92672"&gt;.&lt;/span&gt;SecurityGroupRule(&lt;span style="color:#e6db74"&gt;&amp;#34;sg_rule&amp;#34;&lt;/span&gt;,security_group_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;sg&lt;span style="color:#f92672"&gt;.&lt;/span&gt;id,ip_protocol &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;tcp&amp;#34;&lt;/span&gt;, type&lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;ingress&amp;#34;&lt;/span&gt;,nic_type &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;intranet&amp;#34;&lt;/span&gt;,port_range&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;22/22&amp;#34;&lt;/span&gt;,cidr_ip&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;0.0.0.0/0&amp;#34;&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;instance&lt;span style="color:#f92672"&gt;=&lt;/span&gt;alicloud&lt;span style="color:#f92672"&gt;.&lt;/span&gt;ecs&lt;span style="color:#f92672"&gt;.&lt;/span&gt;Instance(&lt;span style="color:#e6db74"&gt;&amp;#34;ecs-instance2&amp;#34;&lt;/span&gt;,availability_zone&lt;span style="color:#f92672"&gt;=&lt;/span&gt;az,instance_type &lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;ecs.t5-lc2m1.nano&amp;#34;&lt;/span&gt; , security_groups &lt;span style="color:#f92672"&gt;=&lt;/span&gt;sg_ids,image_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;ubuntu_18_04_64_20G_alibase_20190624.vhd&amp;#34;&lt;/span&gt;,instance_name &lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;ecsCreatedByPulumi2&amp;#34;&lt;/span&gt;,vswitch_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;vswitch&lt;span style="color:#f92672"&gt;.&lt;/span&gt;id,internet_max_bandwidth_out &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;10&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="proxmox"&gt;proxmox&lt;/h3&gt;
+&lt;h4 id="环境准备-1"&gt;环境准备&lt;/h4&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; git clone https://github.com/ryan4yin/pulumi-proxmox.git
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; cd pulumi-proxmox
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; brew tap pulumi/tap
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; brew install pulumictl
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; make build_sdks
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; make install_python_sdk
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; pulumi plugin install resource proxmox v0.0.6
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="mainpy-1"&gt;main.py&lt;/h4&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-python" data-lang="python"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; os
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;from&lt;/span&gt; pathlib &lt;span style="color:#f92672"&gt;import&lt;/span&gt; Path
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; pulumi
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;from&lt;/span&gt; pulumi_proxmox &lt;span style="color:#f92672"&gt;import&lt;/span&gt; Provider, ProviderVirtualEnvironmentArgs
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;from&lt;/span&gt; pulumi_proxmox.vm &lt;span style="color:#f92672"&gt;import&lt;/span&gt; &lt;span style="color:#f92672"&gt;*&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;# this provider cannot read configuration from Environment variables yet,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;# You must manually pass parameters by instantiating a custom provider&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;proxmox_provider &lt;span style="color:#f92672"&gt;=&lt;/span&gt; Provider(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;proxmox-provider&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; virtual_environment&lt;span style="color:#f92672"&gt;=&lt;/span&gt;ProviderVirtualEnvironmentArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; endpoint&lt;span style="color:#f92672"&gt;=&lt;/span&gt;os&lt;span style="color:#f92672"&gt;.&lt;/span&gt;getenv(&lt;span style="color:#e6db74"&gt;&amp;#34;PROXMOX_VE_ENDPOINT&amp;#34;&lt;/span&gt;),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; insecure&lt;span style="color:#f92672"&gt;=&lt;/span&gt;os&lt;span style="color:#f92672"&gt;.&lt;/span&gt;getenv(&lt;span style="color:#e6db74"&gt;&amp;#34;PROXMOX_VE_INSECURE&amp;#34;&lt;/span&gt;) &lt;span style="color:#f92672"&gt;==&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;true&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; username&lt;span style="color:#f92672"&gt;=&lt;/span&gt;os&lt;span style="color:#f92672"&gt;.&lt;/span&gt;getenv(&lt;span style="color:#e6db74"&gt;&amp;#34;PROXMOX_VE_USERNAME&amp;#34;&lt;/span&gt;),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; password&lt;span style="color:#f92672"&gt;=&lt;/span&gt;os&lt;span style="color:#f92672"&gt;.&lt;/span&gt;getenv(&lt;span style="color:#e6db74"&gt;&amp;#34;PROXMOX_VE_PASSWORD&amp;#34;&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;# create a virtual machine&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;VirtualMachine(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;ubuntu-vm-0&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; name&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;ubuntu-vm-0&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; description&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;a ubuntu vm for test&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; node_name&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;homelab&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; on_boot&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;True&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# start the vm during system bootup&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; reboot&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;False&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# reboot the vm after it was created successfully&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; started&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;True&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# start the vm after it was created successfully&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# clone from a vm template&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; clone&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineCloneArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; vm_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;110&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# template&amp;#39;s vmId&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; full&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;False&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# full clone, not linked clone&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; datastore_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;local-lvm&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# template&amp;#39;s datastore&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; node_name&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;homelab&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# template&amp;#39;s node name&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# resource pool name&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;#pool_id=&amp;#34;local&amp;#34;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; cpu&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineCpuArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; cores&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; sockets&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; type&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;kvm64&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# set it to kvm64 for better vm migration&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; memory&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineMemoryArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; dedicated&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;4096&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# unit: MB&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; shared&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;4096&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; operating_system&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineOperatingSystemArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; type&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;l26&amp;#34;&lt;/span&gt; &lt;span style="color:#75715e"&gt;# l26: linux2.6-linux5.x&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; agent&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineAgentArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# please confirm you have qemu-guest-agent in your vm before enable this!&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# otherwise this may cause the vm to fail to shutdown/reboot!&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; enabled&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;False&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; timeout&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;60s&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# timeout&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; disks&lt;span style="color:#f92672"&gt;=&lt;/span&gt;[
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; VirtualMachineDiskArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; interface&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;scsi0&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; datastore_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;local-lvm&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; size&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;30&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# unit: GB&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ],
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; network_devices&lt;span style="color:#f92672"&gt;=&lt;/span&gt;[
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; VirtualMachineNetworkDeviceArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; enabled&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;True&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; bridge&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;vmbr0&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; model&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;virtio&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; vlan_id&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ],
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# cloud init configuration&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; initialization&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineInitializationArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; type&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;nocloud&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# &amp;#39;nocloud&amp;#39; for linux, &amp;#39;configdrive2&amp;#39; for windows&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;#datastore_id=&amp;#34;local-lvm&amp;#34;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; dns&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineInitializationDnsArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# dns servers,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; server&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;114.114.114.114,8.8.8.8&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ip_configs&lt;span style="color:#f92672"&gt;=&lt;/span&gt;[
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; VirtualMachineInitializationIpConfigArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ipv4&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineInitializationIpConfigIpv4Args(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; address&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;192.168.1.111/24&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; gateway&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;192.168.1.1&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ],
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; user_account&lt;span style="color:#f92672"&gt;=&lt;/span&gt;VirtualMachineInitializationUserAccountArgs(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# set root&amp;#39;s ssh key&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; keys&lt;span style="color:#f92672"&gt;=&lt;/span&gt;[
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Path(&lt;span style="color:#e6db74"&gt;&amp;#34;ssh-common.pub&amp;#34;&lt;/span&gt;)&lt;span style="color:#f92672"&gt;.&lt;/span&gt;read_text()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ],
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; password&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;chage_me&amp;#34;&lt;/span&gt;, &lt;span style="color:#75715e"&gt;# needed when login from console&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; username&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;root&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ),
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;# use custom provider&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; opts&lt;span style="color:#f92672"&gt;=&lt;/span&gt;pulumi&lt;span style="color:#f92672"&gt;.&lt;/span&gt;ResourceOptions(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; provider&lt;span style="color:#f92672"&gt;=&lt;/span&gt;proxmox_provider
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description></item><item><title>基础设施即代码-cloud-init</title><link>https://git.yimeng.ch/post/2021/cloud-init/</link><pubDate>Sat, 04 Sep 2021 09:19:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/cloud-init/</guid><description>&lt;h1 id="基础设施即代码-cloud-init"&gt;基础设施即代码-cloud-init&lt;/h1&gt;
+&lt;p&gt;第一次接触这个东西应该是在2012年，在创建aws的ec2上的时候，需要注入主机名。当时aws给了一个输入框，可以往里写一些“变量”。在启动的时候就可以按照规定好的变量进行设置。而且还能通过一个URL访问这些变量。这可能就是一开始的cloud-init&lt;/p&gt;
+&lt;p&gt;从下面的图可以看出来 cloud-init除了images(iso)之外，还需要三个数据&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;user-data&lt;/li&gt;
+&lt;li&gt;vendor-data&lt;/li&gt;
+&lt;li&gt;meta-data&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;作为支撑。其中最主要的应该就是user-data了。&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://pic.chenym.net/blog/20220429084107.png" alt="cloud-init"&gt;&lt;/p&gt;
+&lt;h2 id="用户数据"&gt;用户数据&lt;/h2&gt;
+&lt;h3 id="user-data"&gt;user-data&lt;/h3&gt;
+&lt;p&gt;这部分是cloud-init的最主要的数据源，这个阶段白皮书建议做下面的一些事情。但有些事情详见一开始的说明。技术上可以做但是用于第一次启动会不太适合。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;设置主机名&lt;/li&gt;
+&lt;li&gt;增加公钥&lt;/li&gt;
+&lt;li&gt;增加用户&lt;/li&gt;
+&lt;li&gt;磁盘挂载分区&lt;/li&gt;
+&lt;li&gt;更新软件包&lt;/li&gt;
+&lt;li&gt;配置LXD或者docker&lt;/li&gt;
+&lt;li&gt;运行测试代码&lt;/li&gt;
+&lt;li&gt;执行配置管理（ansible puppet chef）&lt;/li&gt;
+&lt;li&gt;扩容根分区&lt;/li&gt;
+&lt;li&gt;设置时区&lt;/li&gt;
+&lt;li&gt;更新软件源地址&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;文件要满足相关的 &lt;a href="https://cloudinit.readthedocs.io/en/latest/topics/format.html"&gt;文件格式&lt;/a&gt; ，相关实例可以参考 &lt;a href="https://cloudinit.readthedocs.io/en/latest/topics/examples.html"&gt;文件示例&lt;/a&gt; 。使用过程中可以使用一些&lt;a href="https://cloudinit.readthedocs.io/en/latest/topics/modules.html"&gt;已经写好的模块&lt;/a&gt;进行配置。&lt;/p&gt;
+&lt;p&gt;同时，还支持一些事件的调用。比如第一次运行的时候，之后每次启动的时候，都可以根据启动的状态进行模块的调用。&lt;/p&gt;
+&lt;p&gt;但事件的调用目前用的应该不多，而且功能也还待完善。&lt;/p&gt;
+&lt;h3 id="vendor-data"&gt;vendor-data&lt;/h3&gt;
+&lt;p&gt;这部分的数据一般来自于云平台自身，跟user-data数据类似。如果使用了user-data数据 这部分可能就不太需要了。例如如果在aws启动实例的控制台上定义了user-data，估计这部分就不生效了。主要用来设置ntp和软件更新源。这部分数据官方文档放到了实例数据中。但是ubuntu的cloud-init白皮书放到了实例数据中，应该属于一个中间地带。并且官方文档也说，建议云厂商不要滥用这个文件。防止给用户带来不必要的困扰，虽然，user-data大于vendor-data，想必这么设计也是有这层意思吧。&lt;/p&gt;
+&lt;h2 id="实例数据"&gt;实例数据&lt;/h2&gt;
+&lt;h4 id="meta-data"&gt;meta-data&lt;/h4&gt;
+&lt;p&gt;这部分就是云实例提供的了。一般来说就是我们可以使用curl来获取的那些信息。会在本机生成一个实例数据的一个文件，可以在这个文件中找到一些非常有用的信息，比如IP地址等。cloud-init在执行的时候就会把一些相关的信息写入这个文件。这个倒是可以结合CMDB或者配置管理的一些数据库进行联合。例如把维护人的username email写入这个文件中。详细的说明可以参考下 &lt;a href="https://cloudinit.readthedocs.io/en/latest/topics/instancedata.html"&gt;官方元数据的说明&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="最佳实践"&gt;最佳实践&lt;/h2&gt;
+&lt;p&gt;这个东西应该是在通过PXE/Packer打包好了镜像之后（也安装了cloud-init）使用的。但有个悖论就是：cloud-init里面有一些软件包的安装过程，这个跟PXE/Packer里面的软件包安装甚至cloud-init后续的ansible/puppet过程的软件包安装可能会有冲突。所以软件包安装这个行为需要谨慎的进行考虑其各个阶段的作用。那么cloud-init在其生命周期里，主要可以用来做什么呢？个人感觉如下几个功能可以供参考：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;主机名的初始化&lt;/li&gt;
+&lt;li&gt;用户初始化&lt;/li&gt;
+&lt;li&gt;公钥的注入&lt;/li&gt;
+&lt;li&gt;一些通过镜像基线没有搞定的事情弥补下&lt;/li&gt;
+&lt;li&gt;分区挂载（如果有运维标准的话可以做）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这个阶段已经开始有IP地址了，准备让应用运维上来初始化他们自己的机器了，基础软件在PXE还有一些小问题的，需要通过这个阶段弥补下。&lt;/p&gt;
+&lt;p&gt;不适合做的事情：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;应用软件的安装（交给应用运维用puppet或者ansible 安装会占用过多的时间 影响交付）&lt;/li&gt;
+&lt;li&gt;跟PE(应用运维)业务有关的事情（增加各个PE的账户，实际上是SA交给PE的最后一步。具体PE分配和使用交给PE去规划）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;说白了 cloud-init是用于SA的最后一步的添补，弥补在打镜像或者terraform的时候的一些缺陷，但似乎跟terraform有一些小冲突。这里可以认为terraform是用于个性化的启动，是一个SA的主动改变的行为。而cloud-init是用于通用化的启动，基本上不太会更改里面的内容，即使修改，可能也在一些可变的URL里进行修改。&lt;/p&gt;
+&lt;p&gt;本篇并没有对cloud-init的技术做过多的介绍，多半还是功能和定位的一个介绍。并且根据自己的思考把一些适用场景进行了描述。因为技术很容易就更新。但产品的定位和功能基因大体不太会变。甚至有些产品到了最后被收购的情况下也不太会改变了。比如puppet。&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://pages.ubuntu.com/rs/066-EOV-335/images/CloudInit_Whitepaper.pdf?utm_source=marketo&amp;amp;utm_medium=landingpage&amp;amp;utm_campaign=CY19_DC_Server_Whitepaper_CloudInit"&gt;cloud-init白皮书&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;TH9REX-4QBDS3-5ADB8U-M5YE4V&lt;/p&gt;
+&lt;p&gt;pulumi&lt;/p&gt;
+&lt;p&gt;quickstart&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export ALICLOUD_ACCESS_KEY&lt;span style="color:#f92672"&gt;=&lt;/span&gt;xxxxx
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;export ALICLOUD_SECRET_KEY&lt;span style="color:#f92672"&gt;=&lt;/span&gt;xxxxxx
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;mkdir quickstart &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt; cd quickstart
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;pulumi new python --force
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;source venv/bin/activate
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;main&lt;/strong&gt;.py&lt;/p&gt;</description></item><item><title>基础设施即代码-PXE</title><link>https://git.yimeng.ch/post/2021/pxe/</link><pubDate>Mon, 30 Aug 2021 23:22:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/pxe/</guid><description>&lt;h1 id="基础设施即代码-pxe"&gt;基础设施即代码-PXE&lt;/h1&gt;
+&lt;p&gt;自从上次搞定了homelab机器之后，就开始基础设施即代码的第一步了 PXE启动。&lt;/p&gt;
+&lt;p&gt;也许你要问了，现在云这么方便PXE这玩意还用得上吗？话说还真是这样，目前大多数时候我们已经用不上这个古老的技术了。在很久以前无盘工作站或者虚拟化的时候，这玩意还是很吃香的。不过这并不影响我们作为一个技术去了解它。而且，现在的一些云厂商或者需要做烧制镜像之前，用PXE还是可以能省不少事的。况且还可以在没有U盘的时候安装系统，何乐不为？（别问我怎么知道的，机器到了之后我就经历了到处借U盘装系统的窘境）&lt;/p&gt;
+&lt;p&gt;前面介绍完了，下面开始介绍这个古老的技术吧：&lt;/p&gt;
+&lt;h2 id="pxe"&gt;PXE&lt;/h2&gt;
+&lt;p&gt;先来一段维基百科上的介绍&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;预启动执行环境&lt;/strong&gt;（&lt;strong&gt;Preboot eXecution Environment&lt;/strong&gt;，&lt;strong&gt;PXE&lt;/strong&gt;，也被称为&lt;strong&gt;预执行环境&lt;/strong&gt;）提供了一种使用网络接口（Network Interface）启动计算机的机制。这种机制让计算机的启动可以不依赖本地数据存储设备（如硬盘）或本地已安装的操作系统。&lt;/p&gt;
+&lt;p&gt;PXE当初是作为&lt;a href="https://zh.wikipedia.org/wiki/Intel"&gt;Intel&lt;/a&gt;的&lt;a href="https://zh.wikipedia.org/w/index.php?title=%E6%9C%89%E7%BA%BF%E7%AE%A1%E7%90%86&amp;amp;action=edit&amp;amp;redlink=1"&gt;有线管理&lt;/a&gt;体系的一部分，&lt;a href="https://zh.wikipedia.org/wiki/Intel"&gt;Intel&lt;/a&gt; 和 &lt;a href="https://zh.wikipedia.org/w/index.php?title=Systemsoft&amp;amp;action=edit&amp;amp;redlink=1"&gt;Systemsoft&lt;/a&gt;于1999年9月20日公布其规格(版本2.1)[&lt;a href="https://zh.wikipedia.org/wiki/%E9%A2%84%E5%90%AF%E5%8A%A8%E6%89%A7%E8%A1%8C%E7%8E%AF%E5%A2%83#cite_note-pxespec-1"&gt;1]&lt;/a&gt;。通过使用像&lt;a href="https://zh.wikipedia.org/wiki/%E7%BD%91%E9%99%85%E5%8D%8F%E8%AE%AE"&gt;网际协议&lt;/a&gt;（IP）、&lt;a href="https://zh.wikipedia.org/wiki/%E7%94%A8%E6%88%B7%E6%95%B0%E6%8D%AE%E6%8A%A5%E5%8D%8F%E8%AE%AE"&gt;用户数据报协议&lt;/a&gt;（UDP）、&lt;a href="https://zh.wikipedia.org/wiki/%E5%8A%A8%E6%80%81%E4%B8%BB%E6%9C%BA%E8%AE%BE%E5%AE%9A%E5%8D%8F%E5%AE%9A"&gt;动态主机设定协定&lt;/a&gt;（DHCP）、&lt;a href="https://zh.wikipedia.org/wiki/BOOTP"&gt;BOOTP&lt;/a&gt;、&lt;a href="https://zh.wikipedia.org/wiki/%E5%B0%8F%E5%9E%8B%E6%96%87%E4%BB%B6%E4%BC%A0%E8%BE%93%E5%8D%8F%E8%AE%AE"&gt;小型文件传输协议&lt;/a&gt;（TFTP）等几种&lt;a href="https://zh.wikipedia.org/wiki/%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE"&gt;网络协议&lt;/a&gt;和&lt;a href="https://zh.wikipedia.org/wiki/%E5%85%A8%E5%B1%80%E5%94%AF%E4%B8%80%E6%A0%87%E8%AF%86%E7%AC%A6"&gt;全局唯一标识符&lt;/a&gt;（GUID）、&lt;a href="https://zh.wikipedia.org/wiki/%E9%80%9A%E7%94%A8%E7%BD%91%E7%BB%9C%E9%A9%B1%E5%8A%A8%E6%8E%A5%E5%8F%A3"&gt;通用网络驱动接口&lt;/a&gt;（UNDI）、&lt;a href="https://zh.wikipedia.org/wiki/%E9%80%9A%E7%94%A8%E5%94%AF%E4%B8%80%E8%AF%86%E5%88%AB%E7%A0%81"&gt;通用唯一识别码&lt;/a&gt;（UUID）的概念并通过对客户机（通过PXE自检的电脑）&lt;a href="https://zh.wikipedia.org/wiki/%E5%9B%BA%E4%BB%B6"&gt;固件&lt;/a&gt;扩展预设的&lt;a href="https://zh.wikipedia.org/wiki/API"&gt;API&lt;/a&gt;来实现目的。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;这里可以看出来，这玩意涉及的技术主要有如下两个：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;DHCP（IP）&lt;/li&gt;
+&lt;li&gt;TFTP（UDP 69）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;相关的流程借用下往上的图片&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://yimeng.cn-bj.ufileos.com/blog/20210830233150.png" alt="PXE流程"&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;主机对DHCP服务器说，给我一个IP地址，并且给我一个TFTP地址（&lt;a href="https://datatracker.ietf.org/doc/html/rfc5859"&gt;RFC5859&lt;/a&gt; Option Codes 128-223）。&lt;/li&gt;
+&lt;li&gt;主机用TFTP协议去主机上下载启动所需的引导文件&lt;a href="https://en.wikipedia.org/wiki/SYSLINUX#PXELINUX"&gt;pxelinux.0&lt;/a&gt;和配置文件pxelinux.cfg/default（&lt;a href="https://datatracker.ietf.org/doc/html/rfc5071"&gt;rfc5071&lt;/a&gt; Option Codes 209-211）。这个文件的引导顺序&lt;a href="https://wiki.syslinux.org/wiki/index.php?title=PXELINUX"&gt;参见这里&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;从pxelinux.cfg/default文件中把kennel文件vmlinuz，initrd.img下载回来进行引导。&lt;/li&gt;
+&lt;li&gt;再向DHCP为linux内核请求一个IP地址。&lt;/li&gt;
+&lt;li&gt;使用第二次请求的IP地址，将ks.cfg下载下来进行自动化安装。&lt;/li&gt;
+&lt;li&gt;可选：将需要安装的操作系统通过http的方式将ks文件和iso文件放到某目录下，这个就是default文件之后的事情了。&lt;del&gt;这玩意其实就是个&lt;a href="https://zh.wikipedia.org/wiki/GNU_GRUB"&gt;GRUB&lt;/a&gt;&lt;/del&gt; 。这里牵涉到了另外几个知识点。一会详细介绍，先把pxelinux.cfg/default的配置放出来。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-ini" data-lang="ini"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#cat pxelinux.cfg/default&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#a6e22e"&gt;default vesamenu.c32&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#a6e22e"&gt;prompt 0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#a6e22e"&gt;timeout 3&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#a6e22e"&gt;ONTIMEOUT CentOS 7&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#a6e22e"&gt;LABEL CentOS 7&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6e22e"&gt;MENU LABEL CentOS 123&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6e22e"&gt;KERNEL vmlinuz&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;#APPEND ks initrd=initrd.img ramdisk_size=100000 ksdevice=eth1 ip=dhcp url --url http://192.168.33.11/&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; 	&lt;span style="color:#a6e22e"&gt;append initrd&lt;/span&gt;&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;initrd.img ks=tftp://xxx.xxx.xxx.xxx/anaconda-ks.cfg&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;好了 下面开始说一下关于引导的知识点了&lt;/p&gt;
+&lt;h2 id="有关引导"&gt;有关引导&lt;/h2&gt;
+&lt;p&gt;关于引导维基百科里有一个专业的&lt;a href="https://en.wikipedia.org/wiki/Comparison_of_boot_loaders"&gt;对比&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;不过在这之前先说一下BIOS和UEFI的区别和对比吧&lt;/p&gt;</description></item><item><title>homelab再出发</title><link>https://git.yimeng.ch/post/2021/homelab/</link><pubDate>Thu, 19 Aug 2021 22:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/homelab/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;以前配的一台homelab主机已经很多年了，配置如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;CPU：&lt;em&gt;Intel(R) Xeon(R) CPU E3-1235L v5 @ 2.00GHz&lt;/em&gt; &lt;strong&gt;Cores:&lt;/strong&gt; 4 &lt;strong&gt;Threads:&lt;/strong&gt; 4 &lt;strong&gt;TDP:&lt;/strong&gt; 25 W &lt;strong&gt;Turbo Speed:&lt;/strong&gt; 3.0 GHz (cpubenchmark:5013)&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;内存：&lt;strong&gt;玖合(JUHOR) 16GB DDR4 2400&lt;/strong&gt; *3&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;主板：Asus/华硕 P10S WS工作站主板C236芯片支持E3-v5 v6系列双M.2接口&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;硬盘：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;**惠普（HP）SSD固态硬盘 M.2接口(NVMe协议) EX920： 256G **&lt;/li&gt;
+&lt;li&gt;海康威视：C2000pro M.2 : 2T&lt;/li&gt;
+&lt;li&gt;西部数据：4T+2T+4T+1T+4T=15T&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;因为几次停电，西部数据的机械硬盘怕受不了太多的刺激，加上有些数据都是比较重要的。所以打算把这台ATX大小的机器作为存储。反正磁盘位还有4-5个，还有两个光驱位可以补充，但不太会在上面折腾了，平时用的时候再开。所以新的需求就来了。如果上天再给我一次选择的机会，我会如何配置呢？&lt;/p&gt;
+&lt;p&gt;当然，新电脑的需求还是取决于钱包里的兜子大小。一开始预算大概只有2-3k。然而，买东西这种事情，你懂的，跟买车一样，一开始我只想买个自行车，谁知道最后买了一个劳斯莱斯幻影。&lt;/p&gt;
+&lt;p&gt;虽然做了很充分的调研，然而最终可能还是买了一个总价5K的，并且最终商家发货之前还在犹豫是A还是B更好一些的问题。可见这个时代装机也是一件很纠结的事情。为了惊醒后人，纠结再三，还是把这次纠结的过程写下来比较好。&lt;/p&gt;
+&lt;h2 id="需求"&gt;需求&lt;/h2&gt;
+&lt;p&gt;根据背景里介绍的那样，这次主要是为了平时做一些实验而买的（和老婆申请的理由）。所以根据现状分布式以及计算和存储分开的原则。本次购买的原则如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;体积要小（容易折腾,房子小折腾大家伙可以扔天津地下室）&lt;/li&gt;
+&lt;li&gt;性能要好一些（平时需求量不大，但希望能多开点虚拟机做实验）&lt;/li&gt;
+&lt;li&gt;内存要大（方便开虚拟机）&lt;/li&gt;
+&lt;li&gt;网口最好要多一些（方便做SDN实验）&lt;/li&gt;
+&lt;li&gt;要便宜（可以多买几个做分布式实验）&lt;/li&gt;
+&lt;li&gt;存储和计算分离（鱼和熊掌不可兼得）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;甚至还在v2ex上发了一个求助帖，链接在本文的最下方，各位看官看完本文可以去瞻仰下。并且通过搜索reddit上的homelab板块，以及chiphell以及YouTube B站上一些信息，甚至跟咸鱼的老板们也聊了不少。最终总结出来以下几个流派（排名不分先后）：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;NUC流派&lt;/li&gt;
+&lt;li&gt;笔记本流派&lt;/li&gt;
+&lt;li&gt;垃圾佬流派&lt;/li&gt;
+&lt;li&gt;其它流派&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下就把相关流派的背景和研究历史跟大家一一道来。&lt;/p&gt;
+&lt;h3 id="nuc流派"&gt;NUC流派&lt;/h3&gt;
+&lt;h4 id="前言"&gt;前言&lt;/h4&gt;
+&lt;p&gt;就好像微软教育超极本厂商一样，Intel除了挤牙膏，也在教各位PC厂商，办公小电脑应该这么做一样。牙膏厂除了挤牙膏，在NUC这个系列上还是很成功的（打脸时间：大多数被大家用来做黑苹果用了）。&lt;/p&gt;
+&lt;p&gt;这其中比较火的就是NUC8 和 新出的NUC10了，其中NUC8 i5-beh这个系列性价比最高（多亏了牙膏挤的慢），再加上可以搞黑苹果的加成，咸鱼上的价格在2K左右（涨价后）。这2K你能买到什么呢？一个&lt;a href="https://ark.intel.com/content/www/cn/zh/ark/products/135935/intel-core-i5-8259u-processor-6m-cache-up-to-3-80-ghz.html"&gt;Intel® Core™ i5-8259U Processor (4C / 8T, 2.3 / 3.8GHz, 6MB L2)&lt;/a&gt; (cpubenchmark ：8131)的一个CPU，NUC11的CPU大概是 i5-1135G7 @ 2.40GHz (4C / 8T, 2.4 / 4.2GHz, 8MB L2) (cpubenchmark：&lt;strong&gt;10072&lt;/strong&gt;)，而且网口终于有2.5G的了，但也就一个而已。&lt;/p&gt;</description></item><item><title>homelab再出发</title><link>https://git.yimeng.ch/post/2021/homelab2021/</link><pubDate>Thu, 19 Aug 2021 22:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/homelab2021/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;自从家里的homelab换了一次内存之后就再也没有打开的欲望了，原因是太大了。折腾起来经常要爬上高出去接键盘和显示器。调试起来及其麻烦。尤其是夏天一身汗，调试硬件需要把一个大机箱搬上搬下及其不方便。加上里面的硬盘数据日益多了起来。而且有一些重要资料。再混在一起怕哪天都崩了。鸡蛋不能放到一个篮子里。&lt;/p&gt;
+&lt;p&gt;笔记本：5800U 有将近2w的跑分 是NUC11+1135G7 和联想m720q+ 8700T的两倍。但！扩展性稍差 只有一个网口 ，不能扩展PCIE和硬盘。平时不跑编译，应该用不到那么好的CPU，裸机价格5K。&lt;/p&gt;
+&lt;p&gt;NUC：NUC8可以装黑苹果，单网口做计算节点没啥毛病。就是电源太大（可以用替代） 。NUC11的双网卡版本基本买不到，CPU性能1w左右 跟垃圾佬的 8700T差不多 。NUC6可以改双网卡但CPU太弱。裸机 2K-3K&lt;/p&gt;
+&lt;p&gt;垃圾佬：&lt;/p&gt;
+&lt;p&gt;M720q：可以装四网卡 CPU也不弱 价格 裸机1K。如果想再好好玩玩 可以看看m910x，双M2扩展，。 930x,量比较少，适配挡板比较难。 裸机+CPU 2K&lt;/p&gt;
+&lt;p&gt;综上好像也就垃圾佬方案了。最总应该是 M920x 准系统 1200+CPU 980+2000 64G内存 +1K 1T SSD 总价下来 5.2K&lt;/p&gt;
+&lt;p&gt;二手笔记本：&lt;/p&gt;
+&lt;p&gt;联想T540P&lt;/p&gt;
+&lt;p&gt;i7 4870hq（6365） 4c8t 16G 256G 500G 1999￥&lt;/p&gt;
+&lt;h2 id="需求"&gt;需求&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;体积要小（容易折腾,房子小折腾大家伙可以扔天津地下室）&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;性能要差不多（平时需求量不大，但希望能多开点虚拟机做实验）&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;内存要大（方便开虚拟机）&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;网口最好要多一些（方便做SDN实验）&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;要便宜（可以多买几个做分布式实验）&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;存储和计算分离（鱼和熊掌不可兼得）&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="选型"&gt;选型&lt;/h2&gt;
+&lt;h3 id="笔记本方案7k左右"&gt;笔记本方案（7K左右）&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;设备型号：&lt;a href="https://psref.lenovo.com/Detail/ThinkPad/ThinkPad_L14_Gen_1_AMD?M=20U50000AT"&gt;ThinkPad L14&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;处理器：AMD Ryzen 7 PRO 4750U (8C / 16T, 1.7 / 4.1GHz, 4MB L2 / 8MB L3) / 15W TDP&lt;/p&gt;</description></item><item><title>懒人搭建k8s</title><link>https://git.yimeng.ch/post/2021/one-k8s/</link><pubDate>Thu, 19 Aug 2021 14:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/one-k8s/</guid><description>&lt;h1 id="背景"&gt;背景&lt;/h1&gt;
+&lt;p&gt;时间已经来到了2021年，手工搭建k8s再也不是什么值得炫耀的事情。加上学习成本很高，大家都开始了一键搭建k8s，学习如何转化为生产力的节奏。总结下截止到2021年8月世面上的k8s一键搭建方案和相关平台&lt;/p&gt;
+&lt;h2 id="google自己家"&gt;google自己家&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://kubernetes.io/zh/docs/setup/production-environment/tools/"&gt;minikube&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;很适合建立一个实验环境，Mac上也是用虚拟机给你搞，有mac版本。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://kubernetes.io/docs/reference/setup-tools/kubeadm/"&gt;kubeadm&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;目前已经生产ready，除了需要改改仓库地址。其它的还算比较方便。直接上Linux折腾吧，Mac上好像不行。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/kubernetes/kops"&gt;kops&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/kubernetes-sigs/kubespray"&gt;Kubespray&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="第三方"&gt;第三方&lt;/h2&gt;
+&lt;h3 id="ubuntu"&gt;ubuntu&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://cn.ubuntu.com/blog/microk8s-ha-minimal-kubernetes"&gt;microk8s&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="管理平台"&gt;管理平台：&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://rancher.com"&gt;rancher&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://kubesphere.io/zh/"&gt;kubesphere&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://www.redhat.com/zh/technologies/cloud-computing/openshift"&gt;openshift&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>阿里云k8s最佳实践</title><link>https://git.yimeng.ch/post/2021/aliyun-k8s/</link><pubDate>Fri, 19 Feb 2021 14:46:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2021/aliyun-k8s/</guid><description>&lt;h1 id="阿里云k8s-规划手册"&gt;阿里云k8s 规划手册&lt;/h1&gt;
+&lt;h2 id="k8s限制"&gt;K8S限制&lt;/h2&gt;
+&lt;p&gt;在 v1.19 版本中， Kubernetes 支持的最大节点数为 5000。更具体地说，我们支持满足以下所有条件的配置：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;节点数不超过 5000&lt;/li&gt;
+&lt;li&gt;Pod 总数不超过 150000&lt;/li&gt;
+&lt;li&gt;容器总数不超过 300000&lt;/li&gt;
+&lt;li&gt;每个节点的 pod 数量不超过 100&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="选型步骤"&gt;选型步骤&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;阿里云K8S分类&lt;/li&gt;
+&lt;li&gt;网络规划&lt;/li&gt;
+&lt;li&gt;ECS选型&lt;/li&gt;
+&lt;li&gt;网络选型&lt;/li&gt;
+&lt;li&gt;配置设置&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="阿里云k8s分类"&gt;阿里云k8s分类&lt;/h2&gt;
+&lt;p&gt;![image-20201124121734196](/Users/yimeng/Library/Application Support/typora-user-images/image-20201124121734196.png)&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;生产环境 Dedicated K8S 自主可控&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;测试环境：Managed K8S 节省成本&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;持续集成 、Job任务：K8S Serverless&lt;/p&gt;
+&lt;h2&gt;&lt;/h2&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="网络规划"&gt;网络规划&lt;/h2&gt;
+&lt;h3 id="vpc"&gt;VPC&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;K8S使用独立的VPC，不建议混用。如混用需要重新规划&lt;/li&gt;
+&lt;li&gt;单个VPC支持云资源使用的私网网络地址数量 60,000 VPC建议使用 16掩码：/16 65532&lt;/li&gt;
+&lt;li&gt;建议k8s独立的VPC，通过云企业网等打通。&lt;/li&gt;
+&lt;li&gt;单个地域支持创建的VPC的数量 10个 北京9个可用区 共计 90个VPC&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="交换机"&gt;交换机&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;交换机网段建议使用20(4094)-21(2046)掩码（为了最大利用IP地址，虚拟机一般用24掩码即可）&lt;/li&gt;
+&lt;li&gt;单个VPC支持创建的交换机的数量 24个(阿里云限制)&lt;/li&gt;
+&lt;li&gt;每个交换机平均掩码长度/20-/21 可用IP数 2044-4092 * 24 ~ 49056 &amp;lt; 65532 &amp;lt; 98208&lt;/li&gt;
+&lt;li&gt;service 数量 1.5:5 svc:pod 1.5w 预留&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="ecs选型"&gt;ECS选型&lt;/h2&gt;
+&lt;h3 id="神龙"&gt;神龙&lt;/h3&gt;
+&lt;p&gt;Node 配置104C 384G 12000/月 每个POD：2C4G 每个Node ~100&amp;lt;110 POD&lt;/p&gt;</description></item><item><title>Grafana最佳实践</title><link>https://git.yimeng.ch/post/2020/grafana-as-code/</link><pubDate>Sat, 31 Oct 2020 09:25:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/grafana-as-code/</guid><description>&lt;h1 id="grafana最佳实践"&gt;grafana最佳实践&lt;/h1&gt;
+&lt;h2 id="前言"&gt;前言&lt;/h2&gt;
+&lt;p&gt;上次说到，后面会针对Grafana，使用对于监控指标的可视化方面做个大致的介绍。大致内容有&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Grafana最佳实践&lt;/li&gt;
+&lt;li&gt;Grafana as Code&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;为什么要讲的是这两点？&lt;/p&gt;
+&lt;p&gt;前一阵子在做基础监控的项目，既然做监控就离不开展示，做展示大屏又离不开Grafana。做Grafana就想了解下知道最佳实践，最佳实践里有一条Grafana as Code。结合这个路子，正好在这里说几个做监控时的两个小感悟。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;开源产品的展示页基本都比较丑：由奢入俭难，大部分的开源软件的自带dashboard基本上只是可用的级别。&lt;/li&gt;
+&lt;li&gt;开发都比较懒，运维也比较懒：如果你是做监控工具的，可以的话就帮开发运维把一些通用的dashboard都做好吧，一穷二白的指望他们自己做不太现实，大家都很忙。不管是出人搞定制化，还是用技术的手段。做工具的服务意识要有。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;基于以上的两点，在SRE时代，关于大屏有三个点可能要了解和掌握：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;了解监控指标分类体系，知道在Grafana上如何展示更直观和合理。&lt;/li&gt;
+&lt;li&gt;使用代码的方式批量去实现1。&lt;/li&gt;
+&lt;li&gt;做好培训和布道，帮助开发和运维去更好的使用，回到1。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;a href="https://www.youtube.com/watch?v=TJLpYXbnfQ4&amp;amp;feature=emb_rel_end"&gt;The RED Method: How To Instrument Your Services [B] - Tom Wilkie, Kausal&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://grafana.com/files/grafanacon_eu_2018/Tom_Wilkie_GrafanaCon_EU_2018.pdf"&gt;https://grafana.com/files/grafanacon_eu_2018/Tom_Wilkie_GrafanaCon_EU_2018.pdf&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://medium.com/thron-tech/how-we-implemented-red-and-use-metrics-for-monitoring-9a7db29382af"&gt;将Prometheus，Grafana，RED和USE指标放在一起以改善监控&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;[一个用于生成Grafana仪表板的&lt;a href="http://jsonnet.org/"&gt;Jsonnet&lt;/a&gt;库](&lt;a href="https://github.com/grafana/grafonnet-lib"&gt;https://github.com/grafana/grafonnet-lib&lt;/a&gt;)&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://grafana.com/go/grafanaconline/tanka-declarative-dashboards-for-declarative-clusters/"&gt;Tanka&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://jimmysong.io/hugo-handbook/steps/website-performence-optimization.html"&gt;网站性能优化&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://grafana.com/go/webinar/guide-to-dashboard-design/?pg=blog&amp;amp;plcmt=body-txt"&gt;A beginner’s guide to good Grafana dashboard design&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="监控指标分类体系"&gt;监控指标分类体系&lt;/h2&gt;
+&lt;p&gt;监控指标体系目前有三种主要的分类方式：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;​	&lt;a href="http://www.brendangregg.com/usemethod.html"&gt;USE Method&lt;/a&gt; (from Brendan Gregg): &lt;strong&gt;Utilization, Saturation, and Errors&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;​	&lt;a href="https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/"&gt;RED Method&lt;/a&gt; (from Tom Wilkie): &lt;strong&gt;Rate, Errors, and Duration&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;​	&lt;a href="https://smile.amazon.com/Site-Reliability-Engineering-Production-Systems/dp/149192912X/ref=sr_1_1"&gt;Google SRE book&lt;/a&gt;: &lt;strong&gt;Latency, Traffic, Errors, and Saturation&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>监控最佳实践-指标篇</title><link>https://git.yimeng.ch/post/2020/monitor-metric/</link><pubDate>Sun, 18 Oct 2020 12:43:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/monitor-metric/</guid><description>&lt;h1 id="监控最佳实践-指标篇"&gt;监控最佳实践-指标篇&lt;/h1&gt;
+&lt;h2 id="监控指标分类体系"&gt;监控指标分类体系&lt;/h2&gt;
+&lt;p&gt;监控指标体系目前有三种主要的分类方式：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;​	&lt;a href="http://www.brendangregg.com/usemethod.html"&gt;USE Method&lt;/a&gt; (from Brendan Gregg): &lt;strong&gt;Utilization, Saturation, and Errors&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;​	&lt;a href="https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/"&gt;RED Method&lt;/a&gt; (from Tom Wilkie): &lt;strong&gt;Rate, Errors, and Duration&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;​	&lt;a href="https://smile.amazon.com/Site-Reliability-Engineering-Production-Systems/dp/149192912X/ref=sr_1_1"&gt;Google SRE book&lt;/a&gt;: &lt;strong&gt;Latency, Traffic, Errors, and Saturation&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="use方法"&gt;USE方法&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;利用率（Utilization）：资源繁忙的时间百分比，例如节点CPU使用率。&lt;/li&gt;
+&lt;li&gt;饱和度（Saturation）：资源必须完成的工作量，通常是队列长度或节点负载。&lt;/li&gt;
+&lt;li&gt;错误（Errors）：错误事件计数。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;主要适用场景：&lt;/p&gt;
+&lt;p&gt;基础结构中的硬件资源，例如CPU，内存和网络设备。&lt;/p&gt;
+&lt;h3 id="red方法"&gt;RED方法&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;速率：每秒请求，每天访问人数等。&lt;/li&gt;
+&lt;li&gt;错误：失败的请求数，&lt;/li&gt;
+&lt;li&gt;持续时间：这些请求花费的时间，延迟测量的分布&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;主要适用场景：&lt;/p&gt;
+&lt;p&gt;这种方法比较适用于服务级别，尤其是微服务。对于研发提供的服务，建议每个组件的服务都暴露一些这样的指标。因为RED 的方法比较适合做成看板和统计SLO。在grafana最佳实践中：建议一个服务做成一行，横向放置某一接口的速率和错误和持续时间。&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.weave.works/docs/cloud/latest/images/monitoring/red-method-dashboard.png" alt=""&gt;&lt;/p&gt;
+&lt;h3 id="sre黄金指标"&gt;SRE黄金指标&lt;/h3&gt;
+&lt;p&gt;此方法与RED方法相似，但包含饱和度。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;延迟（Latency）：处理请求所需的时间&lt;/li&gt;
+&lt;li&gt;流量（Traffic）：系统上有多少请求&lt;/li&gt;
+&lt;li&gt;错误（Errors）：失败请求率&lt;/li&gt;
+&lt;li&gt;饱和度（Saturation）：系统有多“满”，例如负载和队列积压。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;主要适用场景：&lt;/p&gt;
+&lt;p&gt;属于较为通用的场景（合集），基本上是个筐，什么都可以往里装。&lt;/p&gt;
+&lt;p&gt;这里可以说一下Latency里面有一个重要的概念就是Apdex（Application Performance Index）这是一个从APM角度评价性能的标准，主要用于评价用户体验的。比如打开一个服务用的总延迟是多少，根据这个延迟进行一个评分，最后落到0-1之间。&lt;/p&gt;
+&lt;h2 id="指标分类对比"&gt;指标分类对比&lt;/h2&gt;
+&lt;p&gt;方法没有好坏之分，比如比较以下从USE和SRE的两个角度来对于基础设施监控的维度，其实都是可以的，只要适合自己的系统情况即可。&lt;/p&gt;
+&lt;p&gt;USE方法是我自己从经验角度来进行的归类。&lt;/p&gt;
+&lt;p&gt;SRE方法是来自https://www.jianshu.com/p/b01bc69fcc3b 的内容。&lt;/p&gt;
+&lt;p&gt;但更推荐看https://medium.com/@steve.mushero/linuxs-sre-golden-signals-af5aaa26ebae 里关于系统监控项的内容。&lt;/p&gt;
+&lt;h3 id="use方法-1"&gt;USE方法&lt;/h3&gt;
+&lt;h4 id="cpu"&gt;CPU&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;利用率（Utilization）：CPU使用率。&lt;/li&gt;
+&lt;li&gt;饱和度（Saturation）：CPU负载。&lt;/li&gt;
+&lt;li&gt;错误（Errors）：CPU错误&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="内存"&gt;内存&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;利用率（Utilization）：内存使用率。&lt;/li&gt;
+&lt;li&gt;饱和度（Saturation）：内存换入换出。&lt;/li&gt;
+&lt;li&gt;错误（Errors）：内存错误 OOM&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="磁盘"&gt;磁盘&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;利用率（Utilization）：磁盘使用率 inode使用率。&lt;/li&gt;
+&lt;li&gt;饱和度（Saturation）：IO读写流量。&lt;/li&gt;
+&lt;li&gt;错误（Errors）：IO&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="网络"&gt;网络&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;利用率（Utilization）：流量 收发包数 。&lt;/li&gt;
+&lt;li&gt;饱和度（Saturation）：网卡带宽使用率。&lt;/li&gt;
+&lt;li&gt;错误（Errors）：网络设备错误，丢包&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="tcp"&gt;TCP&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;利用率（Utilization）：单个TCP收发包大小？。&lt;/li&gt;
+&lt;li&gt;饱和度（Saturation）：TCP状态连接数。&lt;/li&gt;
+&lt;li&gt;错误（Errors）：中断？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="sre黄金指标-1"&gt;SRE黄金指标&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;要测量CPU，以下测量可能是合适的：&lt;/p&gt;</description></item><item><title>一年前的出租窝，一年后的疫情</title><link>https://git.yimeng.ch/post/2020/covid-19/</link><pubDate>Sat, 19 Sep 2020 12:28:00 +0800</pubDate><guid>https://git.yimeng.ch/post/2020/covid-19/</guid><description>&lt;h1 id="前言"&gt;前言&lt;/h1&gt;
+&lt;p&gt;距离上一次更新已经是一年前了，过年的时候因为疫情。也没有进行一年的总结。还好，这一年其实也没做什么。倒是送走了一位亲人。但2019的好多事情已经想不起来了，2020的记忆多半是在家。也不知道该写啥了。就当再一次的胡言乱语吧。&lt;/p&gt;
+&lt;h1 id="这是哪"&gt;这是哪&lt;/h1&gt;
+&lt;p&gt;从博客中国，到bo-blog，到WordPress。用过很多博客，一直到现在还有一个独立托管的WordPress在linnode上。估计也长草了好久了。都是一些以前记录心情的文章。这里应该以后应该还是以技术文章多一些，一年有个年终生活总结。至于平时有些生活的碎碎念，抽个时间把WordPress转移到hugo，然后建立个私人仓库保存吧。&lt;/p&gt;
+&lt;h1 id="目标"&gt;目标&lt;/h1&gt;
+&lt;p&gt;希望能否一周到两周能有一篇文章，很久以前参加过一个抓虾还是那个RSS聚合网站的活动，每周写一篇博客。当时深知这是一件很难的事情。不过都这个岁数了，应该坚持有点自制力了。希望能够坚持下来。&lt;/p&gt;
+&lt;h1 id="下一篇"&gt;下一篇&lt;/h1&gt;
+&lt;p&gt;最近做的监控和CMDB，运维产品原型较多。可能从产品方向做一些分享和总结。&lt;/p&gt;
+&lt;h1 id="todo"&gt;Todo&lt;/h1&gt;
+&lt;p&gt;需要用github的CI工具把这里做成自动CI/CD的，blog代码化。&lt;/p&gt;</description></item><item><title>家用DNS选择</title><link>https://git.yimeng.ch/post/2019/homedns/</link><pubDate>Thu, 19 Sep 2019 22:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/homedns/</guid><description>&lt;h1 id="家用dns选择"&gt;家用DNS选择&lt;/h1&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;折腾了下家里的路由器之后，发现DHCP分配的IP地址都乱了，以前用IP的一些服务无法运行。&lt;/p&gt;
+&lt;p&gt;用MAC绑定倒是可以解决这个问题，但是随之还是需要一个小的CMDB去存储这些信息，维护量还是存在。&lt;/p&gt;
+&lt;p&gt;于是就想找一个轻量级的DNS服务端来解决内网DNS的问题。&lt;/p&gt;
+&lt;h2 id="需求"&gt;需求&lt;/h2&gt;
+&lt;h3 id="必选"&gt;必选&lt;/h3&gt;
+&lt;p&gt;支持restful api的注册发现&lt;/p&gt;
+&lt;p&gt;轻量级&lt;/p&gt;
+&lt;p&gt;依赖少&lt;/p&gt;
+&lt;p&gt;迁移方便&lt;/p&gt;
+&lt;p&gt;文档丰富&lt;/p&gt;
+&lt;p&gt;学习成本低，知识复用&lt;/p&gt;
+&lt;h3 id="可选"&gt;可选&lt;/h3&gt;
+&lt;p&gt;最好有web页面进行管理&lt;/p&gt;
+&lt;p&gt;高可用无所谓&lt;/p&gt;
+&lt;h2 id="选型"&gt;选型&lt;/h2&gt;
+&lt;p&gt;Bind：比较熟悉了，但是太重，放弃。&lt;/p&gt;
+&lt;p&gt;PowerDNS：网上口碑不错，大多数人的选择，但是还是需要了解一些命令行和配置。还是有一定的学习成本的。而且无法迁移到生产上，知识投入产出比较低，感觉只是Bind的改进版。放弃。&lt;/p&gt;
+&lt;p&gt;CoreDNS：K8s组件之一，有学习成本但是可以移植到k8s上。有etcd服务发现的加持，二进制+配置文件，迁移和部署比较简单。&lt;/p&gt;
+&lt;p&gt;DNSmasq：路由器友好支持，和DHCP在一起。但是缺少服务发现和管理界面，不时之需的时候备选。或者路由器DNSmasq+CoreDNS的组合也是不错的。CoreDNS坏了用DNSmasq接管。&lt;/p&gt;
+&lt;p&gt;consul：天生就是服务发现的工具，也自带dns。就是不能递归。不过对于我来说足够用了。&lt;/p&gt;
+&lt;h2 id="架构"&gt;架构&lt;/h2&gt;
+&lt;p&gt;本地server：CoreDNS+ETCD 配置放到git上作为备份&lt;/p&gt;
+&lt;p&gt;本地client：DNSmasq缓存dns查询 转发的coredns上&lt;/p&gt;
+&lt;p&gt;路由器DNSmasq负责dhcp&lt;/p&gt;</description></item><item><title>数据架构读书笔记</title><link>https://git.yimeng.ch/post/2019/data-architecture/</link><pubDate>Mon, 19 Aug 2019 22:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/data-architecture/</guid><description>&lt;h1 id="数据架构读书笔记"&gt;数据架构读书笔记&lt;/h1&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;因工作上有需要，用一下午的时间翻看了下数据架构这本书。发现和运维的CMDB、监控等方面其实有很多共通之处，只不过运维是具体的场景。而这本书是从诸多业务场景中抽象出来的统一方法论。这里根据运维场景简单写一些个人的读书笔记。&lt;/p&gt;
+&lt;h2 id="第一章企业数据"&gt;第一章：企业数据&lt;/h2&gt;
+&lt;h3 id="企业数据"&gt;企业数据&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;结构数据&lt;/li&gt;
+&lt;li&gt;非结构数据（大数据）
+&lt;ul&gt;
+&lt;li&gt;重复数据&lt;/li&gt;
+&lt;li&gt;非重复数据&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;业务相关性
+&lt;ul&gt;
+&lt;li&gt;业务相关&lt;/li&gt;
+&lt;li&gt;潜在相关&lt;/li&gt;
+&lt;li&gt;业务不相关&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;大数据：重复和非重复的非结构数据&lt;/li&gt;
+&lt;li&gt;分界线：大数据领域中，前者适用于Hadoop，后者适用于用文本分析，有明显的分界线。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src="image-20190820001550335.png" alt="image-20190820001550335"&gt;&lt;/p&gt;
+&lt;p&gt;从这个图可以看出来ElasticSearch应该属于非结构化中的非重复型数据。&lt;/p&gt;
+&lt;p&gt;但如果将这种数据变成了重复性、结构化的数据，那么应该放到哪里呢？&lt;/p&gt;
+&lt;p&gt;运维中经常会将日志结构化之后，将大量重复的数据存放到ES中，最后进行监控统计分析。&lt;/p&gt;
+&lt;p&gt;这种情况会不会有一个更好的位置更加适合监控统计分析的场景呢？总结了监控中的三种数据所存在的位置：&lt;/p&gt;
+&lt;p&gt;1 短期实时数据 ES，用于故障排查、定期巡检等。&lt;/p&gt;
+&lt;p&gt;2 长期重复性数据入Hadoop，用于报表分析，容量规划等。&lt;/p&gt;
+&lt;p&gt;3 辅助时序性数据库（结构化），进行大屏展示、业务归集等。&lt;/p&gt;
+&lt;h3 id="企业数据统计图"&gt;企业数据统计图&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;业务相关&lt;/li&gt;
+&lt;li&gt;潜在业务相关&lt;/li&gt;
+&lt;li&gt;业务不相关&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="企业数据分析"&gt;企业数据分析&lt;/h3&gt;
+&lt;p&gt;数据的最终目的是为了分析，分析分两种类型：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;正式分析：审计、财务报表等用途 数据准确性高&lt;/li&gt;
+&lt;li&gt;非正式分析：准确性要求不高&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;步骤：&lt;/p&gt;
+&lt;p&gt;一 确认数据来源：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;数据：结构化 非结构数据文本&lt;/li&gt;
+&lt;li&gt;物理介质：纸张&lt;/li&gt;
+&lt;li&gt;非数据：语音，二进制&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;数据消解比较困难，需要进行数据集成，进行相关规范化。&lt;/p&gt;
+&lt;h3 id="数据的生命周期"&gt;数据的生命周期&lt;/h3&gt;
+&lt;p&gt;生命周期1：进入——&amp;gt;捕获——&amp;gt;组织——&amp;gt;存储。&lt;/p&gt;
+&lt;p&gt;生命周期2：集成——&amp;gt;使用——&amp;gt;归档——&amp;gt;丢弃。&lt;/p&gt;
+&lt;p&gt;有用性递减曲线&lt;/p&gt;
+&lt;p&gt;&lt;img src="image-20190821010026314.png" alt="image-20190821010026314"&gt;&lt;/p&gt;
+&lt;p&gt;详细数据&amp;amp;汇总数据有用性递减曲线&lt;/p&gt;
+&lt;p&gt;&lt;img src="image-20190821010101628.png" alt="image-20190821010101628"&gt;&lt;/p&gt;
+&lt;p&gt;数据积累曲线&lt;/p&gt;
+&lt;p&gt;&lt;img src="image-20190821011129560.png" alt="image-20190821011129560"&gt;&lt;/p&gt;
+&lt;h2 id="第二章大数据"&gt;第二章：大数据&lt;/h2&gt;
+&lt;h3 id="大数据是什么"&gt;大数据是什么&lt;/h3&gt;
+&lt;p&gt;数量大&lt;/p&gt;
+&lt;p&gt;廉价存储&lt;/p&gt;
+&lt;p&gt;罗马人口统计&lt;/p&gt;
+&lt;p&gt;非结构化格式（非DBMS）&lt;/p&gt;
+&lt;h3 id="重复型数据非重复数据"&gt;重复型数据&amp;amp;非重复数据&lt;/h3&gt;
+&lt;p&gt;重复型：经常出现同一数值的数据&lt;/p&gt;
+&lt;p&gt;非重复：不经常出现同一数据的数据&lt;/p&gt;
+&lt;p&gt;重复型数据占90% 价值只有10%&lt;/p&gt;
+&lt;p&gt;非重复型数据占10% 价值却又90%&lt;/p&gt;
+&lt;h3 id="并行处理"&gt;并行处理&lt;/h3&gt;
+&lt;p&gt;并行化并不是随着节点数线性增加&lt;/p&gt;
+&lt;p&gt;并行化两种形式：1 罗马人口统计 2 大规模并行处理MPP（统一索引）&lt;/p&gt;</description></item><item><title>出租窝装修记</title><link>https://git.yimeng.ch/post/2019/hugo/</link><pubDate>Sun, 18 Aug 2019 15:34:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/hugo/</guid><description>&lt;h1 id="出租窝装修记"&gt;出租窝装修记&lt;/h1&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;刚来北京的时候把自己的博客定义成出租窝，想想和那时候的情景还是很贴合的。现实中有了自己的固定的窝了，但网上的这个窝确荒废了很久了。特别是技术的这个屋子，好久没有收拾了。&lt;/p&gt;
+&lt;p&gt;平时搜索技术文章的时候，还是能看到一些有毅力的人把自己平时的点点滴滴整理成文章，而自己每年都想重拾的出租窝。一直也没有时间和精力搞，这次的突发事件才发现，如果再不整理的话，就可能什么也没留下。&lt;/p&gt;
+&lt;p&gt;还记得10多年前一个feed聚合网站搞的一个比赛，每个星期都要写一篇命题博客，真的好痛苦。但是坚持下来又可以收获很多。这么多的益处还是多写写吧。&lt;/p&gt;
+&lt;p&gt;既然重拾，先定几个大原则：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;更新频率：每周更新一篇；&lt;/li&gt;
+&lt;li&gt;遇到一天没搞定纠结的选择就先选一个；&lt;/li&gt;
+&lt;li&gt;初期内容为主、表现为辅；&lt;/li&gt;
+&lt;li&gt;逐步迭代；&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;总体还是出租窝的title，分为生活屋和技术屋，本次折腾的为技术屋。&lt;/p&gt;
+&lt;h2 id="技术选型"&gt;技术选型&lt;/h2&gt;
+&lt;p&gt;生活屋依旧用WordPress，技术屋转移到github上，为了保险有空的话会在国内也做个镜像。&lt;/p&gt;
+&lt;p&gt;github上有三个大的阵营：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;jekyll&lt;/li&gt;
+&lt;li&gt;hexo&lt;/li&gt;
+&lt;li&gt;hugo&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;网上有很多比较 一开始用jekyll 后来用hexo 如今用hugo，理由如下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;一开始生成静态的初期好像只有jekyll，当时hexo还没有太成熟，就选择了jekyll。&lt;/li&gt;
+&lt;li&gt;后来大家说hexo还可以了，模板还多，比jekyll先进，加上自己并没有几个文章，迁移成本低，就到了hexo。&lt;/li&gt;
+&lt;li&gt;本以为可以能多写一篇文章了，没想到写了5+文章后就再也没有了下文。&lt;/li&gt;
+&lt;li&gt;等又反应过来之后，大家开始高举在微服务、k8s上golang的hugo了，而且hexo的生成速度被大家诟病。好吧开始折腾hugo&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;真是人算不如天算，技术的更新从ruby nodejs 再到golang 还是那句话，工具其实不重要，重要的是内容。虽然工具可能有这样或那样的不适合。但现实情况是有时候还没到不改工具就无法进行下去的节奏。但是，既然大势所趋，迁移成本还是不那么高，那就转成hugo吧。&lt;/p&gt;
+&lt;p&gt;搜索了下相关文章，这两年在这方面还是有很多变化的：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;生成上：写blog也开始用上CI/CD了。&lt;/li&gt;
+&lt;li&gt;评论上：多说没了 disqus依旧 而github的issues也可以变成评论。&lt;/li&gt;
+&lt;li&gt;图片上：有一些在线压缩的工具可以继承到CI中，七牛云 微博图床这些不知道是否还好。&lt;/li&gt;
+&lt;li&gt;CDN上：七牛云好像也变了很多、其它云的对象存储+CDN好像大家也开始有所涉及。&lt;/li&gt;
+&lt;li&gt;主题上：好像大家对于主题没有了以前的热情，唠的涝死旱的旱死，两极分化。&lt;/li&gt;
+&lt;li&gt;其它：唯一不变的还是用git管理markdown写的文章。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="git"&gt;Git&lt;/h2&gt;
+&lt;p&gt;基础操作这里就略过不讲了三部曲&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;git add&lt;/li&gt;
+&lt;li&gt;git commit&lt;/li&gt;
+&lt;li&gt;git push&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;重点讲一下下面两项&lt;/p&gt;
+&lt;h3 id="git-lfs"&gt;Git LFS&lt;/h3&gt;
+&lt;p&gt;无论是github还是gitlab目前比较新的版本都支持了LFS，当然也需要git的客户端的版本在1.8.5+&lt;/p&gt;
+&lt;p&gt;这样在上传一些图片或者二进制包的时候不至于记录到git的历史记录里，防止git仓库过大。&lt;/p&gt;
+&lt;p&gt;git lfs也是三部曲:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;git lfs install&lt;/li&gt;
+&lt;li&gt;git lfs track &amp;ldquo;*.png&amp;rdquo;&lt;/li&gt;
+&lt;li&gt;git add .gitattributes&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="git-remote"&gt;Git remote&lt;/h3&gt;
+&lt;p&gt;说实话，这个还没有用上。原打算在本地生成之后一个push，然后推送到github和coding上的。&lt;/p&gt;
+&lt;p&gt;不过用了CI，只能在CI的过程中生成好静态页，再推送到两个Git仓库中。还可能牵涉到配置文件域名的修改。尚未实践。&lt;/p&gt;
+&lt;h2 id="ci"&gt;CI&lt;/h2&gt;
+&lt;p&gt;在DevOps当道的今天，个人博客也不例外。其实本意应该是减少以前hexo的缓慢编译，以及减少击键次数。目前网上的教程大多是用travis做的，目前github自家的CI也出来了，可以尝试。&lt;/p&gt;</description></item><item><title>家用功率监控</title><link>https://git.yimeng.ch/post/2019/ammeter/</link><pubDate>Sun, 11 Aug 2019 17:36:49 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/ammeter/</guid><description>&lt;h1 id="智能家居-家用功率监控"&gt;智能家居-家用功率监控&lt;/h1&gt;
+&lt;p&gt;智能家居-总功率监控&lt;/p&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;研究homelab机器的时候，忘记在哪个论坛里看到一个人的回复：家里整体功耗才是王道&lt;/p&gt;
+&lt;p&gt;然后就开始了如下的折腾之路，后来就找不到相关的帖子了，自己摸索之后。帖子又奇迹的出现了，正好也找一些资料供大家参考。我这个最终版可能少了一些自己DIY的过程，多半部分在于应用层。硬件和modbus协议部分自己搞了一周也没搞定，后来感谢有个IoT的同事帮忙，一晚上就搞定了。&lt;/p&gt;
+&lt;h2 id="架构"&gt;架构&lt;/h2&gt;
+&lt;h3 id="软件架构"&gt;软件架构&lt;/h3&gt;
+&lt;h4 id="监控展现"&gt;监控展现：&lt;/h4&gt;
+&lt;p&gt;因为是运维背景，很容易就想到了平时做的监控系统:
+nagios历史比较长了，而且数据不是时序数据库，需要集成的东西较多，就没选。
+看了一圈综合起来采集数据监控层还是prometheus比较适合，自带时序数据库，部署方便。展现层grafana易集成。
+时序数据库就用prometheus自带的吧。懒的折腾influxdb了。&lt;/p&gt;
+&lt;h4 id="数据采集"&gt;数据采集：&lt;/h4&gt;
+&lt;p&gt;prometheus需要自己根据modbus协议自己写个exporter，正好研究prometheus的golang的SDK，就顺手了个。&lt;/p&gt;
+&lt;h3 id="硬件架构"&gt;硬件架构&lt;/h3&gt;
+&lt;h4 id="电表"&gt;电表&lt;/h4&gt;
+&lt;p&gt;支持modbus的电表不用说了，但因为家里的电箱空间比较小，因此1P的比较适合。&lt;/p&gt;
+&lt;h4 id="协议"&gt;协议&lt;/h4&gt;
+&lt;p&gt;modbus2tcp: 家里的串口设备也没有那么多，开始有同事建议用TTL转485的，但是TTl的只有树莓派，一直以来感觉树莓派不太稳定。再加上对TCP协议更熟悉一些，所以决定找一个modbus转tcp的转换器，同理也是越小越好。所以就某宝入了一个HF7121，也是冲着体积小去的。一开始买了另一个，体积大不说，调试还没调明白。&lt;/p&gt;
+&lt;h4 id="传输"&gt;传输&lt;/h4&gt;
+&lt;p&gt;家里没有装修 因此走明线也是可以接受的，所以放弃了各种wifi或者无线的方式。既然可以走线就直接上网线了8根线中的两根，剩下的线还可以用作以后的扩展。&lt;/p&gt;
+&lt;h3 id="数据流"&gt;数据流：&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;Prometheus查询exporter&lt;/li&gt;
+&lt;li&gt;exporter 通过TCP&amp;lt;=&amp;gt;modbus(RS465)&amp;lt;=&amp;gt;电表 进行数据获取&lt;/li&gt;
+&lt;li&gt;Prometheus把数据存入时序数据库&lt;/li&gt;
+&lt;li&gt;grafana =&amp;gt; 时序数据库进行查询&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;这个能干吗：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;可以看到自己家的用电量情况&lt;/li&gt;
+&lt;li&gt;可以看到各种用电器的用电特性（微波炉 变频空调）&lt;/li&gt;
+&lt;li&gt;加上点人工智能做智能家居&lt;/li&gt;
+&lt;li&gt;学以致用，初中那些物理知识重新回顾下&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="最终效果图"&gt;最终效果图：&lt;/h3&gt;
+&lt;p&gt;&lt;img src="./ammeter.png" alt="ammeter"&gt;&lt;/p&gt;
+&lt;h3 id="参考资料"&gt;参考资料&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://bbs.hassbian.com/thread-5634-1-1.html"&gt;https://bbs.hassbian.com/thread-5634-1-1.html&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=7736"&gt;https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=7736&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1662"&gt;https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1662&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1472"&gt;https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=1472&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=6081"&gt;https://bbs.hassbian.com/forum.php?mod=viewthread&amp;amp;tid=6081&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Marslander-火星着陆沙盘回顾</title><link>https://git.yimeng.ch/post/2019/marslander/</link><pubDate>Sat, 18 May 2019 10:40:45 +0800</pubDate><guid>https://git.yimeng.ch/post/2019/marslander/</guid><description>&lt;h1 id="引言"&gt;引言&lt;/h1&gt;
+&lt;blockquote&gt;
+&lt;p&gt;听说凤凰沙盘很久了，这次参加DevOpsDays有幸得到了一张Marslander沙盘。第一次参加沙盘活动，虽然之前对ITIL也有一定的了解，但是这次沙盘将DevOps和ITIL很好的集成了起来，对于长期在一线的运维在流程和协作上会有很大的帮助，拖延了好久，终于抽出空来进行回顾和总结。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h1 id="简介"&gt;简介&lt;/h1&gt;
+&lt;blockquote&gt;
+&lt;p&gt;公司已经具备成熟的ITIL流程，包括：事件管理、问题管理、服务台等。现在接到了一个一个登陆火星的计划：需要在这个项目中，用已有的ITIL流程和角色，结合不断纷至沓来的事件、需求、bug、甚至客户的服务满意度调查结果来高效的确保整个项目的顺利进行。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id="角色暂不讨论角色职能"&gt;角色（暂不讨论角色职能）：&lt;/h2&gt;
+&lt;p&gt;产品&amp;amp;销售：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;销售总监：负责根据整体销售目标同产品经理确认每轮需要完成的事情。&lt;/li&gt;
+&lt;li&gt;产品经理：负责和销售总监分解需求优先级。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;IT团队：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;服务台：负责接收各种事件、问题、统计汇总给销售总监和产品经理。&lt;/li&gt;
+&lt;li&gt;开发&lt;/li&gt;
+&lt;li&gt;运维&lt;/li&gt;
+&lt;li&gt;变更发布经理&lt;/li&gt;
+&lt;li&gt;服务经理&lt;/li&gt;
+&lt;li&gt;供应商（虽然不属于IT团队，但感觉放到这里更好一些）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;反馈回环：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;飞行操作员：负责对相关发布以及改进做出评价。（对事）&lt;/li&gt;
+&lt;li&gt;客户支持：负责察言观色客户的喜怒哀乐。（对人）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="过程图"&gt;过程（图）：&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;3个迭代&lt;/li&gt;
+&lt;li&gt;7个冲刺&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;每个冲刺都会在Dashboard上显示各个指标（图）&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;当前收入&lt;/li&gt;
+&lt;li&gt;客户满意度&lt;/li&gt;
+&lt;li&gt;平均解决时间&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="分组"&gt;分组&lt;/h2&gt;
+&lt;p&gt;会场共四个小组：我们小组最后的名称是：只要钱队&lt;/p&gt;
+&lt;h1 id="回顾"&gt;回顾&lt;/h1&gt;
+&lt;p&gt;每次回顾分别从角色、可视化、流程、价值（核心目标）、优先级、质量六个方面进行回顾分析&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th style="text-align: left"&gt;&lt;/th&gt;
+					&lt;th&gt;角色&lt;/th&gt;
+					&lt;th&gt;可视化&lt;/th&gt;
+					&lt;th&gt;流程&lt;/th&gt;
+					&lt;th&gt;价值（核心目标）&lt;/th&gt;
+					&lt;th&gt;优先级&lt;/th&gt;
+					&lt;th&gt;质量&lt;/th&gt;
+					&lt;th&gt;等待浪费&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td style="text-align: left"&gt;第一轮&lt;/td&gt;
+					&lt;td&gt;自己和彼此角色定义不清楚&lt;/td&gt;
+					&lt;td&gt;有意识 桌子上看板（沟通不便废弃） 墙上有看板（没有使用）&lt;/td&gt;
+					&lt;td&gt;有意识 角色不清无法建立&lt;/td&gt;
+					&lt;td&gt;最终人员认为是：简单完成任务&lt;/td&gt;
+					&lt;td&gt;无优先级&lt;/td&gt;
+					&lt;td&gt;无质量&lt;/td&gt;
+					&lt;td&gt;等待浪费严重&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style="text-align: left"&gt;第二轮&lt;/td&gt;
+					&lt;td&gt;自确认自己的角色定义和职责&lt;/td&gt;
+					&lt;td&gt;改进： 墙上的看板（泳道） 有doing和done&lt;/td&gt;
+					&lt;td&gt;流程依旧没有做好：有瓶颈尚未解决&lt;/td&gt;
+					&lt;td&gt;挣钱 忽略了流程上的瓶颈以及其它指标&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+					&lt;td&gt;无质量 无版本&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style="text-align: left"&gt;第三轮&lt;/td&gt;
+					&lt;td&gt;不断提升明确自己的角色定义&lt;/td&gt;
+					&lt;td&gt;完成了可视化 有了真正的BLP&lt;/td&gt;
+					&lt;td&gt;明确了流程，交付物开始增加。&lt;/td&gt;
+					&lt;td&gt;交付了价值，但时间点上交付了错误的价值&lt;/td&gt;
+					&lt;td&gt;从看板中发现价值所在 需求等信息集中到需求池中，但尚未开始排优先级。交付了错误的价值&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style="text-align: left"&gt;第四轮&lt;/td&gt;
+					&lt;td&gt;很清晰角色定义 并且互相之间有合作&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+					&lt;td&gt;改进了产生版本回退的概念&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style="text-align: left"&gt;第五轮&lt;/td&gt;
+					&lt;td&gt;持续改进不断提升&lt;/td&gt;
+					&lt;td&gt;持续改进不断提升&lt;/td&gt;
+					&lt;td&gt;持续改进不断提升&lt;/td&gt;
+					&lt;td&gt;确保目标正确 持续价值交付 提高满意度&lt;/td&gt;
+					&lt;td&gt;持续改进不断提升&lt;/td&gt;
+					&lt;td&gt;持续改进不断提升&lt;/td&gt;
+					&lt;td&gt;持续改进不断提升&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id="思考"&gt;思考&lt;/h2&gt;
+&lt;h3 id="明确角色定义"&gt;明确角色定义&lt;/h3&gt;
+&lt;p&gt;角色定义沙盘中有10个角色，各个角色都不一定是参与者工作的角色，因此熟悉自己的角色工作职责以及和其它角色建立好沟通就显得尤为重要。&lt;/p&gt;</description></item><item><title>Vagrant Alpine</title><link>https://git.yimeng.ch/post/2018/vagrant-alpine/</link><pubDate>Fri, 09 Feb 2018 13:40:05 +0800</pubDate><guid>https://git.yimeng.ch/post/2018/vagrant-alpine/</guid><description>&lt;h1 id="vagrant-alpine自定义实战"&gt;vagrant-alpine自定义实战&lt;/h1&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;在docker CI CD devops各种新鲜事务的潮流下，&lt;a href="http://cloudscaling.com/blog/cloud-computing/the-history-of-pets-vs-cattle/"&gt;Pets=&amp;gt;Cattle&lt;/a&gt; 也告诉运维要的一个思维的转变。
+这个就需要很多的牛来做实验.&lt;/p&gt;
+&lt;p&gt;13年在做puppet的CI/CD的时候，单位有一个OpenStack环境，利用api还是很爽的。后来嫌弃创建实例太慢，又开始用了docker。但docker还是有一定的局限性，比如dns和一些系统参数无法修改验证。vagrant也不错，但当时没有一个精简合适的Linux发行版，启动和资源占用还是很耗费电脑的。&lt;/p&gt;
+&lt;p&gt;在玩docker的时候，发现了alpine这个系统。几十兆到一百兆，经过优化之后启动大概10s就ok。虽然官方有做好了的vagrant镜像。但是感觉还是不够本地化。就有了自己搞的念头。&lt;/p&gt;
+&lt;h2 id="安装alpine"&gt;安装alpine&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://alpinelinux.org/downloads/"&gt;alpine下载&lt;/a&gt;
+如果是virtualbox，选择VIRTUAL版本即可。&lt;/p&gt;
+&lt;p&gt;下载回来是一个iso文件，用virtualbox加载引导。用户名root 密码为空。登陆之后运行setup-alpine开始安装。具体内容这里就不说了。可以看&lt;a href="http://blog.csdn.net/csdn_duomaomao/article/details/76053229"&gt;这里&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="vagrant配置"&gt;vagrant配置&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;添加vagrant账户，密码好像无所谓，最好也是vagrant&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/hashicorp/vagrant/tree/master/keys"&gt;vagrant的公钥&lt;/a&gt;放到~/.ssh/下面，注意好.ssh和公钥的权限问题&lt;/li&gt;
+&lt;li&gt;sudo里加上vagrant&lt;/li&gt;
+&lt;li&gt;root密码为vagrant&lt;/li&gt;
+&lt;li&gt;网络访问方式需要是NAT，这个在打包的时候vagrant甚至还会检测是否把端口映射关闭掉。&lt;/li&gt;
+&lt;li&gt;ssh加速需要把sshd里的UseDNS禁止掉，否则可能ssh进去的时候会稍微慢一点&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;以上是官方的建议，下面来点我自己的干货&lt;/p&gt;
+&lt;h3 id="sshd相关配置"&gt;sshd相关配置&lt;/h3&gt;
+&lt;p&gt;sshd里把最大尝试次数设置的多一点,因为在启动的时候vagrant会进行几次尝试，这时候如果出现一些意外的小状况的话，会被sshd直接拒绝，实验环境，密码私钥都是公开的了，也无所谓尝试几次了。&lt;/p&gt;
+&lt;h3 id="启动倒计时"&gt;启动倒计时&lt;/h3&gt;
+&lt;p&gt;启动的时候有3秒的倒计时，如果介意2秒的启动速度的话可以编辑 /etc/update-extlinux.conf文件，设置timeout=1，然后执行update-extlinux，重启即可看到效果&lt;/p&gt;
+&lt;h3 id="chrony启动优化"&gt;chrony启动优化&lt;/h3&gt;
+&lt;p&gt;启动的时候chrony会有一些慢，可能是在算本地时钟是否准确。如果介意的话可以编辑/etc/chrony/chrony.conf文件，把initstepslew那行注释掉即可提高启动速度，并且把各种ntp的源找个国内的填上比如 cn.pool.ntp.org&lt;/p&gt;
+&lt;h3 id="repo源优化"&gt;repo源优化&lt;/h3&gt;
+&lt;p&gt;改成国内的源，并且用@ pin住，如果加了testing等源的话，会提示apk-tools版本太老，可以用&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;apk add --upgrade apk-tools@edge
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;进行升级&lt;/p&gt;
+&lt;p&gt;/etc/apk/repositories&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;https://mirrors.ustc.edu.cn/alpine/latest-stable/main
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;https://mirrors.ustc.edu.cn/alpine/latest-stable/community
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;@edge https://mirrors.ustc.edu.cn/alpine/edge/main
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;@edgecommunity https://mirrors.ustc.edu.cn/alpine/edge/community
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;@testing https://mirrors.ustc.edu.cn/alpine/edge/testing
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="最后"&gt;最后&lt;/h2&gt;
+&lt;p&gt;找个目录执行&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;vagrant package --base vagrant-alpine --output vagrant-alpine.box
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&amp;ndash;base后面是virtualbox的名称，生成为vagrant-alpine.box。
+但别着急编辑vagrantfile，还需要用&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;vagrant box list
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;看一下，否则up执行的可能是已经add过的老box，而不是这个新的。这点尤其要注意，我就被坑了2个多小时。&lt;/p&gt;
+&lt;p&gt;调试完毕之后，就可以去https://app.vagrantup.com 注册个账户，把做好的box传上去。hashicorp对于公开的box，是没有限制的。如果要私有化自己的box，5$/m 私有项目数目不限制。&lt;/p&gt;
+&lt;p&gt;个人测试上传还好，但是从官网下载的话，还是找个国内速度快的地方搞吧。&lt;/p&gt;
+&lt;h2 id="总结"&gt;总结&lt;/h2&gt;
+&lt;p&gt;制作本身并没有太难的地方，更多的还是遇到问题解决问题的过程并且总结更有意思一些。以后也多了一个在个人profiles页上的新资源：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-ruby" data-lang="ruby"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;Vagrant&lt;/span&gt;&lt;span style="color:#f92672"&gt;.&lt;/span&gt;configure(&lt;span style="color:#e6db74"&gt;&amp;#34;2&amp;#34;&lt;/span&gt;) &lt;span style="color:#66d9ef"&gt;do&lt;/span&gt; &lt;span style="color:#f92672"&gt;|&lt;/span&gt;config&lt;span style="color:#f92672"&gt;|&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; config&lt;span style="color:#f92672"&gt;.&lt;/span&gt;vm&lt;span style="color:#f92672"&gt;.&lt;/span&gt;box &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;yimeng/alpine&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;end&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="参考资料"&gt;参考资料&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://www.vagrantup.com/docs/boxes/base.html"&gt;https://www.vagrantup.com/docs/boxes/base.html&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://wiki.alpinelinux.org/wiki/Installation"&gt;https://wiki.alpinelinux.org/wiki/Installation&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://wiki.alpinelinux.org/wiki/Alpine_Linux_package_management"&gt;https://wiki.alpinelinux.org/wiki/Alpine_Linux_package_management&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/hashicorp/vagrant/tree/master/keys"&gt;https://github.com/hashicorp/vagrant/tree/master/keys&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Hello</title><link>https://git.yimeng.ch/post/2018/hello/</link><pubDate>Sun, 04 Feb 2018 12:44:45 +0800</pubDate><guid>https://git.yimeng.ch/post/2018/hello/</guid><description>&lt;h1 id="开篇"&gt;开篇&lt;/h1&gt;
+&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+&lt;p&gt;和所有一开始学习语言的情况一样，这又又又是一个简单的hello world句式的开篇。&lt;/p&gt;
+&lt;p&gt;一个博客的好坏，真的不在于用什么，访问速度。最后的内容和背后的人有时候反而更重要一些。&lt;/p&gt;
+&lt;p&gt;看一下那些年用过的博客工具，以及自己纠结的经历。也算是给自己30岁之前的那些前博(nv)客(you)们一个交代吧。有些人来了，有些人却又走了。&lt;/p&gt;
+&lt;h2 id="分类"&gt;分类&lt;/h2&gt;
+&lt;p&gt;以下排名按照记忆中接触和使用的顺序排序：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;博客中国&lt;/li&gt;
+&lt;li&gt;blogbus&lt;/li&gt;
+&lt;li&gt;bo-blog&lt;/li&gt;
+&lt;li&gt;wordpress&lt;/li&gt;
+&lt;li&gt;hexo&lt;/li&gt;
+&lt;li&gt;hugo&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上并没有把微博客算进去，这个可能需要另开一篇文章写了。在这里加个todo吧&lt;/p&gt;
+&lt;p&gt;按照时间算:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;2002-2004&lt;/li&gt;
+&lt;li&gt;2005-2011&lt;/li&gt;
+&lt;li&gt;2011+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;按照种类分:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;国内托管&lt;/li&gt;
+&lt;li&gt;自己搭建&lt;/li&gt;
+&lt;li&gt;静态托管&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="发展史"&gt;发展史&lt;/h2&gt;
+&lt;hr&gt;
+&lt;h3 id="托管时代"&gt;托管时代&lt;/h3&gt;
+&lt;p&gt;在那个移动互联网并没有普及的站长时代，随着web2.0的普及，全民开始生产各种内容。而博客中国在我的印象里应该是比较早的为大家提供博客托管服务的，后来文艺的blogbus，娱乐的新浪博客。都是同一时期的产物。&lt;/p&gt;
+&lt;p&gt;博客中国有点类似于当时的qq空间，群众基础好，受众面比较广。&lt;/p&gt;
+&lt;p&gt;blogbus当属比较好的，有点类似于现在的豆瓣以及青云，界面上走的是文艺范。&lt;/p&gt;
+&lt;p&gt;以上都是托管，对于技术来讲并没有什么太好介绍的。不过还是要感谢这些BSP，为那场浪潮开了一个好头。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h3 id="自建时代"&gt;自建时代&lt;/h3&gt;
+&lt;p&gt;后来一些有基础的站长，甚至后来的老徐都开始自立门户。这时候就开始催生了一些国内国外的博客程序。&lt;/p&gt;
+&lt;p&gt;国内的bo-blog当时搭建简单，界面友好，自带tag等时尚功能。在当时可以说做到了开箱即用，而赢得了一大批国内用户的簇拥。&lt;/p&gt;
+&lt;p&gt;而国外的wordpress，其实定位是CMS，比如中文化，搭建资料，搭建难度对于一些小站长都着实有一些难度。再加上不太符合中国人的模板审美。只有一些技术范的站长使用。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h3 id="静态托管时代"&gt;静态托管时代&lt;/h3&gt;
+&lt;p&gt;再后来应该随着ruby的流行，github的流行。大家开始了使用github开始托管各种静态站点&lt;/p&gt;
+&lt;p&gt;当我开始关注这一块的时候，jekyll应该已经很成熟了。
+大家都开始转向hexo，当然我也没有落俗。跟着用hexo在github上写了几篇。后来发现生成速度确实很慢，加上自己很懒一直也没有很好的写几篇技术文章。&lt;/p&gt;
+&lt;p&gt;在大家开始各种公众号发文章，各处演讲的时候。有时候想想是不是应该也把一些想法啥的写下来。不过再开始用的时候发现hexo的生成速度还是不能忍，不知道是老macbook 2013不行了还是咋，又开始了又一轮磨刀不误砍柴工的旅程。当然这过程也不是一帆风顺的。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="我和hego"&gt;我和hego&lt;/h2&gt;
+&lt;p&gt;golang的流行和极快的生成速度让大家对于hugo的追捧。尝试了下，速度确实很快！就它了。&lt;/p&gt;
+&lt;p&gt;在搭建的过程中，hugo比起hexo的模板，毕竟golang和nodejs，分别就是一前一后的帮派，想要极快的速度就别强求漂亮的模板了。&lt;/p&gt;
+&lt;p&gt;看得上眼的，都需要一些前段功底去修改一些细节。于是花了一天稍微研究了下hugo的模板系统，发现没有前端和golang的模板基础，还真的需要一段时间来学习，成本很高。&lt;/p&gt;
+&lt;p&gt;为了不忘初心的继续愉快的写文章，最后挑选了一个模板，post和list页可以使用就收手开始写文章&lt;/p&gt;</description></item></channel></rss>
